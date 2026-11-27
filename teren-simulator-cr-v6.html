@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Terén ČR">
+<meta name="theme-color" content="#0d1117">
+<title>Terénní simulátor ČR v4 (LIDAR vrstva s překrytím + výškopisný filtr)</title>
+<style>
+:root{--bg:#0d1117;--pn:rgba(17,23,30,.95);--bd:#2c3846;--tx:#e6edf3;--mu:#8b98a5;--ac:#4fc3f7;--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sh:260px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:14px/1.35 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+#map{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
+button,select,input{font:inherit;color:var(--tx)}
+button{background:#1f2a36;border:1px solid var(--bd);border-radius:10px;padding:8px 12px;min-height:44px;touch-action:manipulation;cursor:pointer}
+button.on,button:active{background:#0b5f86;border-color:var(--ac)}
+input[type=date],input[type=number],input[type=text],select{background:#1a232d;border:1px solid var(--bd);border-radius:8px;padding:8px;min-height:40px;max-width:100%}
+input[type=range]{width:100%;min-height:34px;accent-color:var(--ac)}
+#top{position:fixed;left:0;right:0;top:0;padding:calc(6px + var(--sat)) 8px 4px;display:flex;flex-direction:column;gap:5px;pointer-events:none;z-index:4}
+#tabs{display:flex;gap:4px;pointer-events:auto}
+#tabs button{flex:1;padding:6px 2px;font-size:12.5px;background:var(--pn)}
+#tabs button.on{background:#0b5f86}
+#status{pointer-events:auto;background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:6px 10px;font-size:12.5px;min-height:38px}
+#status b{color:var(--ac)}
+#fabs{position:fixed;right:8px;bottom:calc(var(--sh) + 10px);display:flex;flex-direction:column;gap:6px;z-index:4}
+#fabs button{width:46px;padding:0;background:var(--pn);font-size:20px}
+#scalebar{position:fixed;left:10px;bottom:calc(var(--sh) + 10px);font-size:11px;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none;z-index:4}
+#scalebar i{display:block;height:5px;border:2px solid #fff;border-top:none;margin-top:2px;box-shadow:0 0 2px #000}
+#busy{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--pn);padding:10px 16px;border-radius:12px;border:1px solid var(--bd);display:none;pointer-events:none;z-index:25}
+#toast{position:fixed;left:50%;bottom:calc(var(--sh) + 70px);transform:translateX(-50%);background:#263445;border:1px solid var(--ac);padding:9px 14px;border-radius:12px;max-width:90%;display:none;text-align:center;z-index:30}
+#sheet{position:fixed;left:0;right:0;bottom:0;background:var(--pn);border-top:1px solid var(--bd);border-radius:16px 16px 0 0;max-height:48vh;overflow-y:auto;padding:0 12px calc(10px + var(--sab));touch-action:pan-y;-webkit-user-select:text;user-select:text;z-index:5}
+#sheet.min{max-height:34px;overflow:hidden}
+#grab{position:sticky;top:0;background:var(--pn);text-align:center;height:30px;line-height:30px;color:var(--mu);cursor:pointer;margin:0 -12px;z-index:2}
+section{display:none}
+body[data-m="1"] section[data-m="1"],body[data-m="2"] section[data-m="2"],body[data-m="3"] section[data-m="3"],body[data-m="4"] section[data-m="4"],body[data-m="5"] section[data-m="5"]{display:block}
+.row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.row>*{flex:0 1 auto}.row>.grow{flex:1 1 120px}
+.info{font-size:13px;margin:6px 0;color:#cfd8e0}
+.big{font-size:22px;font-weight:600;min-width:62px}
+.st{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0}
+.st div{background:#1a232d;border-radius:8px;padding:6px 8px;font-size:11.5px;color:var(--mu)}
+.st b{display:block;font-size:15px;color:var(--tx)}
+canvas.ch{width:100%;display:block;background:#10161d;border-radius:8px;margin:6px 0;touch-action:none}
+label{display:block;margin:6px 0;font-size:13px}label.chk{display:flex;gap:8px;align-items:center}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--ac)}
+.lg{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+#settings{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20;overflow-y:auto;padding:calc(10px + var(--sat)) 10px calc(10px + var(--sab));-webkit-user-select:text;user-select:text}
+#settings[hidden]{display:none}
+.card{background:#121a22;border:1px solid var(--bd);border-radius:14px;padding:12px;max-width:620px;margin:0 auto}
+.card h3{margin:0 0 6px;display:flex;justify-content:space-between;align-items:center}
+.card h4{margin:14px 0 4px;color:var(--ac)}
+.note{font-size:12px;color:#ffb74d;background:#2a2112;border-radius:8px;padding:8px;margin:8px 0}
+.bar{height:10px;background:#1a232d;border-radius:6px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;width:0;background:var(--ac)}
+.reg{display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid var(--bd);padding:6px 0;font-size:12.5px}
+.reg button{min-height:36px;padding:4px 10px}
+.badge{display:inline-block;padding:1px 6px;border-radius:6px;font-size:11px;background:#1b3348;color:var(--ac);border:1px solid #2b4c6b}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
+.chip{background:#1a232d;border:1px solid var(--bd);border-radius:16px;padding:4px 10px;font-size:12px;cursor:pointer;min-height:32px;display:inline-flex;align-items:center;gap:4px}
+.chip.on{background:#123c56;border-color:var(--ac);color:#fff}
+.wp-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#161f29;border:1px solid var(--bd);border-radius:10px;padding:7px 9px;margin:5px 0;font-size:12.5px}
+.wp-item button{min-height:34px;padding:4px 9px;font-size:12px}
+</style>
+</head>
+<body data-m="1">
+<canvas id="map"></canvas>
+<div id="top">
+ <div id="tabs">
+  <button data-m="1" class="on">☀ Stín</button>
+  <button data-m="2">⛰ Výškopis</button>
+  <button data-m="3">👁 Viditelnost</button>
+  <button data-m="4">🌬 Závětří</button>
+  <button data-m="5">📌 Body</button>
+ </div>
+ <div id="status">Klepněte na mapu pro výběr bodu.</div>
+</div>
+<div id="fabs">
+ <button id="fZi" title="Přiblížit">＋</button>
+ <button id="fZo" title="Oddálit">－</button>
+ <button id="fGps" title="GPS">📍</button>
+ <button id="fPan" title="Režim jednoho prstu">☝</button>
+ <button id="fRe" title="Přepočítat grid zde">⟳</button>
+ <button id="fSet" title="Nastavení">⚙</button>
+</div>
+<div id="scalebar"><span id="scTxt"></span><i id="scBar"></i></div>
+<div id="busy">Počítám výškový grid…</div>
+<div id="toast"></div>
+
+<div id="sheet"><div id="grab">▾ panel ▾</div>
+
+<section data-m="1">
+ <div class="row"><input type="date" id="date"><button id="now">Teď</button><button id="play">▶</button></div>
+ <div class="row"><span class="big" id="tlabel">12:00</span><input class="grow" type="range" id="time" min="0" max="1439" value="720"></div>
+ <div class="info" id="sunInfo"></div>
+ <canvas class="ch" id="hzCanvas" style="height:170px"></canvas>
+ <div class="info" id="sunEvents">Klepněte na mapu → analýza horizontu a východu/západu slunce za okolní terén.</div>
+</section>
+
+<section data-m="2">
+ <div class="row">
+  <label class="chk grow" style="margin:0"><input type="checkbox" id="lidarOn" checked> ČÚZK LIDAR DMR 5G <small id="lidarStatus" style="font-size:11px"></small></label>
+  <select id="lidarStyle">
+   <option value="Default">Výchozí reliéf (ČÚZK)</option>
+   <option value="GrayscaleHillshade">Stínovaný reliéf (DMR 5G)</option>
+   <option value="MultidirectionalHillshade">Vícesměrné stínování</option>
+   <option value="Slope">Sklonitost (ČÚZK)</option>
+   <option value="Aspect">Expozice svahu</option>
+  </select>
+ </div>
+ <div class="row">
+  <label class="grow" style="margin:0">Překrytí LIDARu: <b id="lidarOpacV">75</b> %<input type="range" id="lidarOpac" min="0" max="100" step="5" value="75"></label>
+  <select id="lidarBlend" title="Režim prolnutí LIDAR vrstvy s výškopisem">
+   <option value="source-over">Normální překrytí</option>
+   <option value="multiply">Násobit (reliéf + barvy)</option>
+   <option value="overlay">Kontrastní překrytí</option>
+   <option value="hard-light">Tvrdé světlo</option>
+  </select>
+ </div>
+ <div class="row">
+  <label class="chk grow" style="margin:0"><input type="checkbox" id="hypsoOn" checked> Barevný výškopis pod LIDARem</label>
+ </div>
+ <div class="st" id="stats"></div>
+ <div class="row"><label class="chk grow" style="margin:0"><input type="checkbox" id="slopeMap"> Zvýraznit sklony od</label><select id="slopeThr"><option>25</option><option>30</option><option>35</option></select>°</div>
+ <div class="row"><button id="setA">Klep = bod A</button><button id="setB">Klep = bod B</button><button id="clrAB">Zrušit A/B</button></div>
+ <div class="info">Body A/B lze přetáhnout prstem. Aktivní: <b id="nextAB">A</b> <span id="profSrc" class="badge" hidden>LIDAR DMR 5G</span></div>
+ <canvas class="ch" id="profCanvas" style="height:150px"></canvas>
+ <div class="info" id="profTip" style="min-height:18px"></div>
+ <div class="info" id="profInfo">Klepněte na mapu a vyberte body A a B.</div>
+</section>
+
+<section data-m="3">
+ <div class="row">
+  <select id="towerSel" class="grow"><option value="">— Vybrat rozhlednu v okolí —</option></select>
+  <button id="towerRefresh" title="Načíst rozhledny a objekty v okolí">🗼</button>
+ </div>
+ <label>Výška pozorovatele / rozhledny nad terénem: <b id="obsV">1.8</b> m<input type="range" id="obsH" min="0" max="60" step="0.5" value="1.8"></label>
+ <label>Výška cíle nad terénem: <b id="tgtV">1.5</b> m<input type="range" id="tgtH" min="0" max="100" step="0.5" value="1.5"></label>
+ <label>Maximální dosah: <b id="rngV">3</b> km<input type="range" id="vsR" min="0.5" max="50" step="0.5" value="3"></label>
+ <div class="info"><span class="lg" style="background:#4caf50"></span>viditelné <span class="lg" style="background:#e53935"></span>stíněné terénem</div>
+ <div class="info" id="vsInfo">Klepnutím na mapu nebo výběrem rozhledny umístěte pozorovatele.</div>
+</section>
+
+<section data-m="4">
+ <div class="row">
+  <label class="chk grow" style="margin:0"><input type="checkbox" id="windLidar" checked> LIDAR reliéf pod závětřím</label>
+  <span style="font-size:12px;color:var(--mu)">krytí <b id="windLidarOpacV">80</b>%</span>
+ </div>
+ <input type="range" id="windLidarOpac" min="0" max="100" step="5" value="80">
+ <label>Směr, ODKUD vítr vane: <b id="windV">270° (W)</b><input type="range" id="windR" min="0" max="360" step="1" value="270"></label>
+ <div class="row" id="windQ"></div>
+ <label>Dosah hledání návětrných překážek <select id="shDist"><option value="1000">1 km</option><option value="2000" selected>2 km</option><option value="4000">4 km</option></select></label>
+ <div class="row"><button id="wxWind">Použít vítr z Open-Meteo</button></div>
+ <div class="info"><span class="lg" style="background:#ff7043"></span>návětří (svah čelí větru) <span class="lg" style="background:#42c878"></span>závětří (stínění hřebenem / odvrácený svah)</div>
+ <div class="info" id="windInfo"></div>
+</section>
+
+<section data-m="5">
+ <div class="info" style="margin-bottom:2px"><b>Filtr objektů v mapě (OSM + offline):</b></div>
+ <div class="chips" id="poiFilters">
+  <button class="chip on" data-f="settlements">🏘 Města a obce</button>
+  <button class="chip on" data-f="peaks">▲ Vrcholy</button>
+  <button class="chip on" data-f="towers">🗼 Rozhledny</button>
+  <button class="chip on" data-f="ruins">🏰 Zříceniny a hrady</button>
+  <button class="chip on" data-f="underground">🕳 Jeskyně a podzemí</button>
+  <button class="chip on" data-f="waypoints">📌 Moje body</button>
+ </div>
+ <div class="row">
+  <button id="poiFetchNow" class="grow">🔄 Načíst objekty v okolí</button>
+ </div>
+ <h4 style="margin:10px 0 4px;color:var(--ac)">Vlastní offline body (Waypointy)</h4>
+ <div class="row">
+  <input type="text" id="wpName" class="grow" placeholder="Název bodu (např. Bivak, Vchod, Auto…)">
+  <select id="wpCat">
+   <option value="camp">⛺ Bivak / tábořiště</option>
+   <option value="bunker">🛡 Bunkr / podzemí</option>
+   <option value="car">🚗 Parkování / start</option>
+   <option value="view">👁 Výhled / místo</option>
+   <option value="water">💧 Voda / pramen</option>
+  </select>
+ </div>
+ <div class="row">
+  <input type="text" id="wpNote" class="grow" placeholder="Poznámka (volitelné)">
+  <button id="wpAddSel">＋ Uložit vybraný bod</button>
+  <button id="wpAddGps" title="Uložit aktuální GPS polohu">📍 GPS</button>
+ </div>
+ <div class="row">
+  <button id="wpExport">⬇ Export GPX / JSON</button>
+  <button id="wpImportBtn">⬆ Import</button>
+  <input type="file" id="wpImportFile" accept=".json,.gpx" hidden>
+ </div>
+ <div id="wpList"></div>
+</section>
+</div>
+
+<div id="settings" hidden><div class="card">
+ <h3>Nastavení <button id="closeSet">✕</button></h3>
+ <h4>Mapa, popisky a LIDAR</h4>
+ <label class="chk"><input type="checkbox" id="labelsOn"> Zobrazit popisky v mapě (města, vrcholy, rozhledny, zříceniny, podzemí, waypointy)</label>
+ <label>Podkladová mapa (cesty, vodstvo) <select id="basemap"><option value="none">Žádná</option><option value="otm">OpenTopoMap</option><option value="osm">OpenStreetMap</option></select></label>
+ <label>Neprůhlednost podkladu: <b id="opacV"></b> %<input type="range" id="opac" min="0" max="80" step="5"></label>
+ <label>Vrstevnice <select id="contour"><option value="0">vypnuto</option><option value="10">po 10 m</option><option value="20">po 20 m</option><option value="50">po 50 m</option></select></label>
+ <label>Rozlišení výpočetního gridu <select id="gridN"><option value="240">240 × 240 (rychlé)</option><option value="288">288 × 288</option><option value="320">320 × 320 (detailní)</option></select></label>
+ <label class="chk"><input type="checkbox" id="autoGrid"> Automaticky přepočítat grid po posunu / zoomu</label>
+ <h4>Offline režim</h4>
+ <label class="chk"><input type="checkbox" id="offline"> Offline režim (jen IndexedDB / .hgt, žádná síť)</label>
+ <div class="row"><select id="regSel" class="grow"></select><select id="regZ"><option value="11">zoom 11</option><option value="12" selected>zoom 12</option></select></div>
+ <div class="info" id="regEst"></div>
+ <div class="row"><button id="regDl">Stáhnout kraj + objekty (offline)</button><button id="regCancel" hidden>Zrušit</button></div>
+ <div class="bar"><i id="regBar"></i></div><div class="info" id="regProg"></div>
+ <div id="regList"></div>
+ <div class="note">⚠ Safari na iPhonu může data v IndexedDB uvolnit při nedostatku úložiště nebo po delší nečinnosti aplikace. Kraj proto před výpravou ověřte (případně stáhněte znovu) a nejlépe aplikaci přidejte na plochu. Vlastní waypointy doporučujeme občas zazálohovat přes Export v záložce Body.</div>
+ <h4>Lokální SRTM (.hgt)</h4>
+ <input type="file" id="hgtFile" accept=".hgt" multiple>
+ <label class="chk"><input type="checkbox" id="hgtOn"> Použít načtená HGT data</label>
+ <div id="hgtList" class="info"></div>
+ <h4>Model teploty a tlaku (offline / bez signálu)</h4>
+ <label>Tlak u hladiny moře P0 (hPa)<br><input type="number" id="p0" step="0.1"></label>
+ <label>Teplota u hladiny moře (°C), prázdné = podle měsíce<br><input type="number" id="tref" step="0.5"></label>
+</div></div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id),D2R=Math.PI/180,R2D=180/Math.PI,EARTH=6371008.8,CIRC=40075016.686,KC=0.87/(2*EARTH);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v,pad=n=>String(n).padStart(2,'0');
+const lon2u=l=>(l+180)/360,lat2v=l=>{const s=Math.sin(l*D2R);return .5-Math.log((1+s)/(1-s))/(4*Math.PI)};
+const u2lon=u=>u*360-180,v2lat=v=>Math.atan(Math.sinh(Math.PI*(1-2*v)))*R2D;
+const S={
+ basemap:'none',opac:35,contour:0,N:288,offline:false,auto:true,P0:1013.25,Tref:'',oneFinger:'act',slopeThr:25,hgtOn:true,
+ labels:true,detail:'Default',lidarOn:true,lidarOpac:75,lidarBlend:'source-over',hypsoOn:true,windLidar:true,windLidarOpac:80,
+ filters:{settlements:true,peaks:true,towers:true,ruins:true,underground:true,waypoints:true}
+};
+try{
+ const saved=JSON.parse(localStorage.getItem('tsim-cfg')||'{}');
+ Object.assign(S,saved);
+ if(saved.detail==='GrayscaleHillshade'&&!saved._v6){S.detail='Default';S.lidarBlend='source-over';S._v6=true;}
+ if(saved.filters)S.filters=Object.assign({settlements:true,peaks:true,towers:true,ruins:true,underground:true,waypoints:true},saved.filters);
+}catch(e){}
+const saveS=()=>{try{localStorage.setItem('tsim-cfg',JSON.stringify(S))}catch(e){}};
+const KRAJE=[
+{name:'Jihočeský',minLat:48.55,maxLat:49.65,minLon:13.40,maxLon:15.20},
+{name:'Plzeňský',minLat:49.00,maxLat:50.10,minLon:12.70,maxLon:14.00},
+{name:'Středočeský',minLat:49.40,maxLat:50.45,minLon:13.55,maxLon:15.30},
+{name:'Hlavní město Praha',minLat:49.94,maxLat:50.18,minLon:14.22,maxLon:14.71},
+{name:'Karlovarský',minLat:49.85,maxLat:50.45,minLon:12.09,maxLon:13.20},
+{name:'Ústecký',minLat:50.15,maxLat:51.06,minLon:12.95,maxLon:14.60},
+{name:'Liberecký',minLat:50.40,maxLat:51.05,minLon:14.50,maxLon:15.40},
+{name:'Královéhradecký',minLat:50.10,maxLat:50.75,minLon:15.15,maxLon:16.60},
+{name:'Pardubický',minLat:49.50,maxLat:50.25,minLon:15.55,maxLon:16.70},
+{name:'Vysočina',minLat:48.95,maxLat:49.75,minLon:15.10,maxLon:16.30},
+{name:'Jihomoravský',minLat:48.55,maxLat:49.55,minLon:16.05,maxLon:17.35},
+{name:'Olomoucký',minLat:49.20,maxLat:50.30,minLon:16.60,maxLon:17.65},
+{name:'Zlínský',minLat:48.85,maxLat:49.60,minLon:17.20,maxLon:18.25},
+{name:'Moravskoslezský',minLat:49.45,maxLat:50.35,minLon:17.20,maxLon:18.90}];
+const BASES={otm:{url:(z,x,y)=>`https://tile.opentopomap.org/${z}/${x}/${y}.png`,max:17},osm:{url:(z,x,y)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`,max:19}};
+const WP_ICONS={camp:'⛺',bunker:'🛡',car:'🚗',view:'👁',water:'💧'};
+
+/* ---------- stav ---------- */
+const cv=$('map'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+const V={u:lon2u(14.15),v:lat2v(49.25),z:10};
+const scale=()=>256*Math.pow(2,V.z);
+let mode=1,sel=null,gps=null,A=null,B=null,obs=null,nextAB='A',wind=270,profHover=null;
+let G=null,GW=null,wideBusy=false,building=false,pendingBuild=false,netFail=false,regions=[],hgts=[];
+let dirty=true,needRecompute=false,hzStale=true,sdStale=true,HZ=null,DIP=-1,SD=null,PR=null,wx=null;
+let pois=[],waypoints=[],poiCache=new Map(),poiBusy=false,lastPoiKey='';
+const s2w=(x,y)=>{const sc=scale();return{u:V.u+(x-W/2)/sc,v:V.v+(y-H/2)/sc}};
+const ll2s=(lat,lon)=>{const sc=scale();return[(lon2u(lon)-V.u)*sc+W/2,(lat2v(lat)-V.v)*sc+H/2]};
+function toast(t,ms=3500){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',ms)}
+function resize(){DPR=Math.min(window.devicePixelRatio||1,3);W=innerWidth;H=innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);dirty=true}
+function fit(c){const r=c.getBoundingClientRect();if(r.width<5||r.height<5)return null;c.width=Math.round(r.width*DPR);c.height=Math.round(r.height*DPR);const x=c.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);return{x,w:r.width,h:r.height}}
+
+/* ---------- IndexedDB v3 (tiles, regions, poi, waypoints) ---------- */
+let dbp=null;
+function db(){return dbp||(dbp=new Promise((res,rej)=>{if(!window.indexedDB)return rej(new Error('IndexedDB nedostupná'));const r=indexedDB.open('tsim-dem',3);r.onupgradeneeded=()=>{const d=r.result;for(const n of['tiles','poi'])if(!d.objectStoreNames.contains(n))d.createObjectStore(n);if(!d.objectStoreNames.contains('regions'))d.createObjectStore('regions',{keyPath:'id'});if(!d.objectStoreNames.contains('waypoints'))d.createObjectStore('waypoints',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
+async function idb(store,m,fn){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(store,m),st=t.objectStore(store);let out;const rq=fn(st);if(rq)rq.onsuccess=()=>{out=rq.result};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
+async function loadRegions(){try{regions=await idb('regions','readonly',s=>s.getAll())||[];await loadOfflinePois();await loadWaypoints()}catch(e){regions=[]}renderRegions()}
+
+/* ---------- ČÚZK LIDAR DMR 5G (multi-endpoint ČÚZK + lokální reliéfní filtr) ---------- */
+const lidarImgs=new Map();
+let lidarState={ok:0,err:0,srcName:'',fallback:false};
+function u2wm(u){return(u*2-1)*20037508.342789244}
+function v2wm(v){return(1-v*2)*20037508.342789244}
+function updateLidarBadge(){
+ const el=$('lidarStatus');if(!el)return;
+ if(!S.lidarOn){el.textContent='';return}
+ if(lidarState.ok>0){el.textContent='● ČÚZK aktivní';el.style.color='#66bb6a'}
+ else if(lidarState.fallback||S.offline){el.textContent='● reliéfní filtr (lokální DEM)';el.style.color='#4fc3f7'}
+ else{el.textContent='načítám ČÚZK…';el.style.color='#4fc3f7'}
+}
+function lidarUrls(rule,bbox,bbox4326){
+ const rr=rule&&rule!=='Default'?'&renderingRule='+encodeURIComponent(JSON.stringify({rasterFunction:rule})):'';
+ return [
+  `https://ags.cuzk.gov.cz/arcgis2/rest/services/dmr5g/ImageServer/exportImage?bbox=${bbox}&bboxSR=3857&imageSR=3857&size=512,512&format=png32&transparent=true&f=image${rr}`,
+  `https://ags.cuzk.gov.cz/arcgis2/rest/services/dmr5g/ImageServer/exportImage?bbox=${bbox}&bboxSR=3857&imageSR=3857&size=512,512&format=png&f=image`,
+  `https://ags.cuzk.gov.cz/arcgis2/services/dmr5g/ImageServer/WMSServer?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=0&STYLES=&CRS=EPSG:3857&BBOX=${bbox}&WIDTH=512&HEIGHT=512&FORMAT=image/png&TRANSPARENT=TRUE`,
+  `https://geoportal.cuzk.cz/WMS_DMR5G/WMService.aspx?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=GR_DMR5G&STYLES=&CRS=EPSG:4326&BBOX=${bbox4326}&WIDTH=512&HEIGHT=512&FORMAT=image/png&TRANSPARENT=TRUE`
+ ];
+}
+function lidarTile(rule,z,x,y){
+ const k=rule+'/'+z+'/'+x+'/'+y;
+ let im=lidarImgs.get(k);
+ if(!im){
+  im=new Image();
+  im.referrerPolicy='no-referrer';
+  const n=2**z,u0=x/n,u1=(x+1)/n,v0=y/n,v1=(y+1)/n;
+  const bbox=`${u2wm(u0).toFixed(2)},${v2wm(v1).toFixed(2)},${u2wm(u1).toFixed(2)},${v2wm(v0).toFixed(2)}`;
+  const bbox4326=`${v2lat(v1).toFixed(6)},${u2lon(u0).toFixed(6)},${v2lat(v0).toFixed(6)},${u2lon(u1).toFixed(6)}`;
+  const urls=lidarUrls(rule,bbox,bbox4326);
+  im.step=0;
+  im.onload=()=>{lidarState.ok++;lidarState.fallback=false;updateLidarBadge();dirty=true};
+  im.onerror=()=>{
+   im.step++;
+   if(im.step<urls.length){im.src=urls[im.step];return}
+   im.bad=true;lidarState.err++;
+   if(lidarState.ok===0)lidarState.fallback=true;
+   updateLidarBadge();dirty=true;
+  };
+  im.src=urls[0];
+  lidarImgs.set(k,im);
+  if(lidarImgs.size>240)lidarImgs.delete(lidarImgs.keys().next().value);
+ }
+ return im;
+}
+
+/* Lokální LIDAR-style reliéfní filtr (okamžitě dostupný i při blokaci ČÚZK / offline) */
+let localLidarCvs=null,localLidarCtx=null,localLidarImg=null,localLidarKey='';
+function renderLocalLidarFilter(){
+ if(!G)return null;
+ const key=`${G.u0}_${G.v0}_${G.nx}_${S.detail}`;
+ if(localLidarCvs&&localLidarKey===key)return localLidarCvs;
+ const{nx,ny,GX,GY,INV,SL}=G;
+ if(!localLidarCvs||localLidarCvs.width!==nx||localLidarCvs.height!==ny){
+  localLidarCvs=document.createElement('canvas');localLidarCvs.width=nx;localLidarCvs.height=ny;
+  localLidarCtx=localLidarCvs.getContext('2d');localLidarImg=localLidarCtx.createImageData(nx,ny);
+ }
+ const d=localLidarImg.data,st=S.detail;
+ for(let k=0;k<nx*ny;k++){
+  const gx=GX[k]*2.2,gy=GY[k]*2.2,inv=1/Math.sqrt(1+gx*gx+gy*gy);
+  let r=128,g=128,b=128;
+  if(st==='Slope'){
+   const s=clamp(SL[k]/45,0,1);
+   r=Math.round(40+215*s);g=Math.round(220*(1-s*0.75));b=Math.round(60*(1-s));
+  }else if(st==='Aspect'){
+   const az=(Math.atan2(-gx,-gy)*R2D+360)%360;
+   const c=Math.min(1,SL[k]/12);
+   const h=az/60,x=1-Math.abs(h%2-1);
+   let rr=0,gg=0,bb=0;
+   if(h<1){rr=1;gg=x}else if(h<2){rr=x;gg=1}else if(h<3){gg=1;bb=x}else if(h<4){gg=x;bb=1}else if(h<5){rr=x;bb=1}else{rr=1;bb=x}
+   r=Math.round(128+(rr*255-128)*c);g=Math.round(128+(gg*255-128)*c);b=Math.round(128+(bb*255-128)*c);
+  }else if(st==='MultidirectionalHillshade'){
+   const i1=Math.max(0,(-gx*-.5-gy*.5+.707)*inv);
+   const i2=Math.max(0,(-gx*.5-gy*.5+.707)*inv);
+   const i3=Math.max(0,(-gx*0-gy*.707+.707)*inv);
+   const v=clamp((0.5*i1+0.3*i2+0.2*i3)*275,15,250);
+   r=g=b=v;
+  }else{
+   const ill=Math.max(0,(-gx*-.55-gy*.55+.63)*inv);
+   const v=clamp(ill*270,12,250);
+   r=g=b=v;
+  }
+  const p=k*4;d[p]=r;d[p+1]=g;d[p+2]=b;d[p+3]=255;
+ }
+ localLidarCtx.putImageData(localLidarImg,0,0);
+ localLidarKey=key;
+ return localLidarCvs;
+}
+
+function drawLidarLayer(sc,alpha=1,blend='source-over'){
+ if(alpha<=0)return;
+ let drewTile=0;
+ if(!S.offline){
+  const tz=clamp(Math.round(V.z-0.3),7,16),n=2**tz,ts=sc/n;
+  const xa=Math.max(0,Math.floor((V.u-W/2/sc)*n)),xb=Math.min(n-1,Math.floor((V.u+W/2/sc)*n));
+  const ya=Math.max(0,Math.floor((V.v-H/2/sc)*n)),yb=Math.min(n-1,Math.floor((V.v+H/2/sc)*n));
+  if((xb-xa+1)*(yb-ya+1)<=48){
+   ctx.save();
+   ctx.globalAlpha=alpha;
+   ctx.globalCompositeOperation=blend;
+   for(let y=ya;y<=yb;y++)for(let x=xa;x<=xb;x++){
+    const im=lidarTile(S.detail,tz,x,y);
+    if(im.complete&&im.naturalWidth){
+     ctx.drawImage(im,(x/n-V.u)*sc+W/2,(y/n-V.v)*sc+H/2,ts+.5,ts+.5);
+     drewTile++;
+    }
+   }
+   ctx.restore();
+  }
+ }
+ if(!drewTile&&G){
+  const lc=renderLocalLidarFilter();
+  if(lc){
+   ctx.save();
+   ctx.globalAlpha=alpha;
+   ctx.globalCompositeOperation=blend;
+   ctx.imageSmoothingEnabled=true;
+   ctx.drawImage(lc,(G.u0-V.u)*sc+W/2,(G.v0-V.v)*sc+H/2,G.nx*G.cu*sc,G.ny*G.cu*sc);
+   ctx.restore();
+  }
+ }
+}
+
+/* ---------- DEM dlaždice (AWS Terrarium) ---------- */
+const demCache=new Map();
+const toF=a=>{const f=new Float32Array(65536);for(let i=0;i<65536;i++)f[i]=a[i]/10;return f};
+function loadImg(url){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>rej(new Error('img'));i.src=url})}
+const dc=document.createElement('canvas');dc.width=dc.height=256;const dctx=dc.getContext('2d',{willReadFrequently:true});
+async function fetchTileDm(z,x,y){let err;for(let a=0;a<2;a++){try{const img=await loadImg(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`);dctx.clearRect(0,0,256,256);dctx.drawImage(img,0,0);const d=dctx.getImageData(0,0,256,256).data,o=new Int16Array(65536);for(let i=0,p=0;i<65536;i++,p+=4){const h=d[p]*256+d[p+1]+d[p+2]/256-32768;o[i]=clamp(Math.round(h*10),-32768,32767)}return o}catch(e){err=e}}throw err}
+async function getTile(z,x,y,net){
+ const k=z+'/'+x+'/'+y;if(demCache.has(k)){const t=demCache.get(k);demCache.delete(k);demCache.set(k,t);return t}
+ let f=null;
+ try{const buf=await idb('tiles','readonly',s=>s.get(k));if(buf)f=toF(new Int16Array(buf))}catch(e){}
+ if(!f&&net){try{f=toF(await fetchTileDm(z,x,y))}catch(e){netFail=true}}
+ if(f){demCache.set(k,f);if(demCache.size>110)demCache.delete(demCache.keys().next().value)}
+ return f}
+const tileRange=(b,z)=>{const n=2**z;return{z,x0:Math.floor(lon2u(b.minLon)*n),x1:Math.floor(lon2u(b.maxLon)*n),y0:Math.floor(lat2v(b.maxLat)*n),y1:Math.floor(lat2v(b.minLat)*n)}};
+const rangeCount=r=>(r.x1-r.x0+1)*(r.y1-r.y0+1);
+
+/* ---------- výpočetní grid ---------- */
+function showBusy(b){$('busy').style.display=b?'block':'none'}
+async function makeGrid(uc,vc,side,N,maxZ=13){
+ const cu=side/N,u0=uc-side/2,v0=vc-side/2;
+ const latc=v2lat(vc),dx=cu*CIRC*Math.cos(latc*D2R);
+ let zt=Math.round(Math.log2(CIRC*Math.cos(latc*D2R)/(256*dx)));zt=clamp(zt,5,maxZ);
+ if(S.offline){const zs=regions.map(r=>r.zoom);if(zs.length)zt=zs.reduce((a,b)=>Math.abs(b-zt)<Math.abs(a-zt)?b:a)}
+ let n,tx0,tx1,ty0,ty1;
+ for(;;){n=2**zt;const m=1/(256*n);tx0=Math.floor((u0-m)*n);tx1=Math.floor((u0+side+m)*n);ty0=Math.floor((v0-m)*n);ty1=Math.floor((v0+side+m)*n);const c=(tx1-tx0+1)*(ty1-ty0+1);if(c<=36||zt<=5)break;if(S.offline&&c<=100)break;if(S.offline)return{err:'too_far'};zt--}
+ const mw=(tx1-tx0+1)*256,mh=(ty1-ty0+1)*256,mos=new Float32Array(mw*mh);let miss=0;netFail=false;
+ const jobs=[];for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++)jobs.push([tx,ty]);
+ await Promise.all(jobs.map(async([tx,ty])=>{
+  const t=(ty<0||ty>=n)?null:await getTile(zt,((tx%n)+n)%n,ty,!S.offline);
+  if(!t){miss++;return}
+  const bx=(tx-tx0)*256,by=(ty-ty0)*256;for(let r=0;r<256;r++)mos.set(t.subarray(r*256,r*256+256),(by+r)*mw+bx)}));
+ const nzs=n*256,sxA=new Float32Array(N),syA=new Float32Array(N),lonA=new Float64Array(N),latA=new Float64Array(N);
+ for(let i=0;i<N;i++){const u=u0+(i+.5)*cu;sxA[i]=u*nzs-.5-tx0*256;lonA[i]=u2lon(u);const v=v0+(i+.5)*cu;syA[i]=v*nzs-.5-ty0*256;latA[i]=v2lat(v)}
+ const Hh=new Float32Array(N*N);
+ for(let j=0,k=0;j<N;j++){let sy=syA[j],y0=Math.floor(sy),fy=sy-y0;if(y0<0){y0=0;fy=0}else if(y0>mh-2){y0=mh-2;fy=1}
+  for(let i=0;i<N;i++,k++){let sx=sxA[i],x0=Math.floor(sx),fx=sx-x0;if(x0<0){x0=0;fx=0}else if(x0>mw-2){x0=mw-2;fx=1}
+   const p=y0*mw+x0;Hh[k]=mos[p]*(1-fx)*(1-fy)+mos[p+1]*fx*(1-fy)+mos[p+mw]*(1-fx)*fy+mos[p+mw+1]*fx*fy}}
+ if(S.hgtOn&&hgts.length){for(let j=0,k=0;j<N;j++){const lat=latA[j];for(let i=0;i<N;i++,k++){const lon=lonA[i];for(const h of hgts){if(lat>=h.lat&&lat<h.lat+1&&lon>=h.lon&&lon<h.lon+1){const fx=(lon-h.lon)*(h.n-1),fy=(h.lat+1-lat)*(h.n-1),x0=Math.min(fx|0,h.n-2),y0=Math.min(fy|0,h.n-2),ax=fx-x0,ay=fy-y0,p=y0*h.n+x0,d=h.d,a=d[p],b=d[p+1],c=d[p+h.n],e=d[p+h.n+1];if(a>-1000&&b>-1000&&c>-1000&&e>-1000)Hh[k]=a*(1-ax)*(1-ay)+b*ax*(1-ay)+c*(1-ax)*ay+e*ax*ay;break}}}}}
+ const GX=new Float32Array(N*N),GY=new Float32Array(N*N),INV=new Float32Array(N*N),SL=new Float32Array(N*N);let mn=1e9,mx=-1e9;
+ for(let j=0;j<N;j++){const jm=Math.max(j-1,0)*N,j0=j*N,jp=Math.min(j+1,N-1)*N;for(let i=0;i<N;i++){const im=Math.max(i-1,0),ip=Math.min(i+1,N-1),k=j0+i,h=Hh[k];if(h<mn)mn=h;if(h>mx)mx=h;
+  const gx=((Hh[jm+ip]+2*Hh[j0+ip]+Hh[jp+ip])-(Hh[jm+im]+2*Hh[j0+im]+Hh[jp+im]))/(8*dx*(ip-im)/2),gj=((Hh[jp+im]+2*Hh[jp+i]+Hh[jp+ip])-(Hh[jm+im]+2*Hh[jm+i]+Hh[jm+ip]))/(8*dx*(jp-jm)/(2*N)),gy=-gj;
+  GX[k]=gx;GY[k]=gy;INV[k]=1/Math.sqrt(1+gx*gx+gy*gy);SL[k]=Math.atan(Math.hypot(gx,gy))*R2D}}
+ return{grid:{nx:N,ny:N,u0,v0,cu,dx,H:Hh,GX,GY,INV,SL,min:mn,max:mx,zt,latc,lonc:u2lon(uc),shadow:null,vs:null,W:null,L:null},miss};
+}
+
+async function buildGrid(){
+ if(building){pendingBuild=true;return}
+ building=true;pendingBuild=false;showBusy(true);
+ try{
+  if(S.offline&&!regions.length&&!hgts.length)toast('Offline režim: nejsou stažená žádná data (Nastavení → Offline).',5000);
+  const N=+S.N,sc=scale(),side=Math.max(W,H)*1.15/sc;
+  const res=await makeGrid(V.u,V.v,side,N,13);
+  if(res.err==='too_far'){toast('Příliš oddáleno pro offline data – přibližte mapu.');building=false;showBusy(false);return}
+  const g=res.grid,i0=clamp(Math.floor((V.u-W/2/sc-g.u0)/g.cu),0,N-1),i1=clamp(Math.ceil((V.u+W/2/sc-g.u0)/g.cu),0,N-1),j0=clamp(Math.floor((V.v-H/2/sc-g.v0)/g.cu),0,N-1),j1=clamp(Math.ceil((V.v+H/2/sc-g.v0)/g.cu),0,N-1);
+  g.vp={i0,i1,j0,j1};G=g;
+  hzStale=true;needRecompute=true;dirty=true;
+  if(res.miss&&S.offline)toast(`Offline: chybí ${res.miss} dlaždic v databázi – místo nich je výška 0 m.`,5000);
+  else if(netFail)toast('Síť není dostupná – použita jen offline data.',5000);
+  updateStatus();
+  if(!S.offline)fetchPoisViewport();
+ }catch(e){toast('Chyba při sestavení gridu: '+(e.message||e),5000)}
+ building=false;showBusy(false);if(pendingBuild)buildGrid()}
+let gT=null;function scheduleGrid(){clearTimeout(gT);gT=setTimeout(()=>{if(S.auto)buildGrid()},550)}
+function ll2g(lat,lon,g=G){if(!g)return null;const x=(lon2u(lon)-g.u0)/g.cu-.5,y=(lat2v(lat)-g.v0)/g.cu-.5;return{x,y,in:x>=0&&y>=0&&x<=g.nx-1&&y<=g.ny-1}}
+function sampleG(x,y,g=G){const nx=g.nx;if(x<0||y<0||x>nx-1||y>g.ny-1)return NaN;const ix=Math.min(x|0,nx-2),iy=Math.min(y|0,g.ny-2),ax=x-ix,ay=y-iy,p=iy*nx+ix,h=g.H;return h[p]*(1-ax)*(1-ay)+h[p+1]*ax*(1-ay)+h[p+nx]*(1-ax)*ay+h[p+nx+1]*ax*ay}
+function elevAt(p){if(!G||!p)return NaN;const g=ll2g(p.lat,p.lon);return g.in?sampleG(g.x,g.y):NaN}
+const hav=(a,b)=>{const dl=(b.lat-a.lat)*D2R,dn=(b.lon-a.lon)*D2R,q=Math.sin(dl/2)**2+Math.cos(a.lat*D2R)*Math.cos(b.lat*D2R)*Math.sin(dn/2)**2;return 2*EARTH*Math.asin(Math.sqrt(q))};
+
+/* ---------- POI: města, obce, vrcholy, rozhledny, zříceniny, jeskyně/podzemí ---------- */
+function parseOverpassPois(data){
+ const out=[];if(!data||!data.elements)return out;
+ for(const el of data.elements){
+  const lat=el.lat||(el.center&&el.center.lat),lon=el.lon||(el.center&&el.center.lon);
+  if(typeof lat!=='number'||typeof lon!=='number')continue;
+  const t=el.tags||{};
+  let kind='peak',prio=4,h=parseFloat(t.ele)||null,th=parseFloat(t.height)||null;
+  if(t.place==='city'){kind='city';prio=1}
+  else if(t.place==='town'){kind='town';prio=2}
+  else if(t.place==='village'||t.place==='suburb'){kind='village';prio=3}
+  else if(t['tower:type']==='observation'||t.man_made==='observation_tower'){kind='tower';prio=2}
+  else if(t.historic==='ruins'||t.historic==='castle'||t.historic==='fort'){kind='ruin';prio=3}
+  else if(t.natural==='cave_entrance'||t.man_made==='adit'||t.man_made==='mineshaft'||t.military==='bunker'){kind='underground';prio=3}
+  else if(t.natural==='peak'||t.natural==='hill'){kind='peak';prio=t.natural==='peak'?3:4}
+  const defName=kind==='tower'?'Rozhledna':kind==='ruin'?'Zřícenina':kind==='underground'?(t.military==='bunker'?'Bunkr':t.natural==='cave_entrance'?'Jeskyně':'Štola / podzemí'):null;
+  const name=t.name||defName;
+  if(!name)continue;
+  out.push({id:el.type[0]+el.id,lat,lon,name,kind,prio,ele:h,th:th});
+ }
+ return out;
+}
+function mergePois(list){
+ const map=new Map();for(const p of pois)map.set(p.id,p);for(const p of list)map.set(p.id,p);
+ pois=[...map.values()];updateTowerSelect();dirty=true;
+}
+async function loadOfflinePois(){
+ try{
+  const keys=await idb('poi','readonly',s=>s.getAllKeys());
+  for(const k of keys||[]){const arr=await idb('poi','readonly',s=>s.get(k));if(Array.isArray(arr))mergePois(arr)}
+ }catch(e){}
+}
+async function queryOverpass(minLat,minLon,maxLat,maxLon,wide=false){
+ const bb=`${minLat.toFixed(4)},${minLon.toFixed(4)},${maxLat.toFixed(4)},${maxLon.toFixed(4)}`;
+ const q=wide
+  ?`[out:json][timeout:20];(node["place"~"^(city|town)$"](${bb});node["natural"="peak"]["ele"](${bb});nwr["tower:type"="observation"](${bb});nwr["historic"~"^(ruins|castle)$"](${bb});nwr["natural"="cave_entrance"](${bb});nwr["military"="bunker"](${bb});nwr["man_made"~"^(adit|mineshaft)$"](${bb}););out center qt 1200;`
+  :`[out:json][timeout:20];(node["place"~"^(city|town|village)$"](${bb});node["natural"~"^(peak|hill)$"](${bb});nwr["tower:type"="observation"](${bb});nwr["historic"~"^(ruins|castle|fort)$"](${bb});nwr["natural"="cave_entrance"](${bb});nwr["military"="bunker"](${bb});nwr["man_made"~"^(adit|mineshaft)$"](${bb}););out center qt 900;`;
+ const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
+ if(!r.ok)throw new Error('overpass');
+ return parseOverpassPois(await r.json());
+}
+async function fetchPoisViewport(force=false){
+ if(S.offline||poiBusy)return;
+ const lat=v2lat(V.v),lon=u2lon(V.u),span=clamp(0.45*Math.pow(2,10-V.z),0.08,0.65);
+ const key=`${lat.toFixed(2)}_${lon.toFixed(2)}_${span.toFixed(2)}`;
+ if(!force&&key===lastPoiKey)return;
+ if(poiCache.has(key)){lastPoiKey=key;mergePois(poiCache.get(key));return}
+ poiBusy=true;
+ try{
+  const list=await queryOverpass(lat-span,lon-span*1.4,lat+span,lon+span*1.4,span>0.35);
+  poiCache.set(key,list);lastPoiKey=key;mergePois(list);
+ }catch(e){}
+ poiBusy=false;
+}
+function updateTowerSelect(){
+ const selEl=$('towerSel'),cur=selEl.value;
+ const cLat=v2lat(V.v),cLon=u2lon(V.u);
+ const towers=pois.filter(p=>p.kind==='tower').map(p=>({...p,d:hav({lat:cLat,lon:cLon},p)})).sort((a,b)=>a.d-b.d).slice(0,40);
+ selEl.innerHTML='<option value="">— Vybrat rozhlednu v okolí ('+towers.length+') —</option>'+towers.map(t=>`<option value="${t.id}">${t.name}${t.ele?' ('+Math.round(t.ele)+' m)':''}${t.th?' · výška '+t.th+' m':''} · ${(t.d/1000).toFixed(1)} km</option>`).join('');
+ if(cur&&towers.some(t=>t.id===cur))selEl.value=cur;
+}
+
+/* ---------- vlastní waypointy (IndexedDB) ---------- */
+async function loadWaypoints(){
+ try{waypoints=await idb('waypoints','readonly',s=>s.getAll())||[]}catch(e){waypoints=[]}
+ renderWaypoints();dirty=true;
+}
+function renderWaypoints(){
+ const el=$('wpList');
+ if(!waypoints.length){el.innerHTML='<div class="info">Zatím nemáte uložené žádné vlastní body.</div>';return}
+ el.innerHTML=waypoints.slice().sort((a,b)=>b.date-a.date).map(w=>{
+  const ic=WP_ICONS[w.cat]||'📌';
+  return `<div class="wp-item">
+   <span><b>${ic} ${esc(w.name)}</b> · ${w.ele!=null?Math.round(w.ele)+' m':'—'}<br>
+   <small style="color:#8b98a5">${w.lat.toFixed(5)}, ${w.lon.toFixed(5)}${w.note?' · '+esc(w.note):''}</small></span>
+   <span>
+    <button data-wp-go="${w.id}" title="Přejít na bod">🎯</button>
+    <button data-wp-del="${w.id}" title="Smazat">✕</button>
+   </span>
+  </div>`;
+ }).join('');
+}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function addWaypoint(pt){
+ if(!pt){toast('Nejprve klepněte na mapu nebo použijte GPS.');return}
+ const raw=$('wpName').value.trim(),cat=$('wpCat').value,note=$('wpNote').value.trim();
+ const name=raw||`Bod ${waypoints.length+1}`;
+ const h=elevAt(pt);
+ const wp={id:'wp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name,cat,note,lat:pt.lat,lon:pt.lon,ele:isNaN(h)?null:Math.round(h),date:Date.now()};
+ try{
+  await idb('waypoints','readwrite',s=>s.put(wp));
+  $('wpName').value='';$('wpNote').value='';
+  await loadWaypoints();
+  toast(`Uloženo: ${name}`);
+ }catch(e){toast('Nepodařilo se uložit bod: '+e.message)}
+}
+async function delWaypoint(id){
+ try{await idb('waypoints','readwrite',s=>s.delete(id));await loadWaypoints();toast('Bod smazán.')}catch(e){}
+}
+function exportWaypoints(){
+ if(!waypoints.length){toast('Nemáte žádné uložené body k exportu.');return}
+ const gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="TerenSimulatorCR">\n`+
+  waypoints.map(w=>`  <wpt lat="${w.lat.toFixed(6)}" lon="${w.lon.toFixed(6)}">${w.ele!=null?`<ele>${w.ele}</ele>`:''}<name>${esc(w.name)}</name>${w.note?`<desc>${esc(w.note)}</desc>`:''}<type>${esc(w.cat)}</type></wpt>`).join('\n')+
+  `\n</gpx>`;
+ const blob=new Blob([gpx],{type:'application/gpx+xml'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`waypointy-teren-${new Date().toISOString().slice(0,10)}.gpx`;a.click();
+ setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+async function importWaypoints(file){
+ if(!file)return;
+ const txt=await file.text();
+ let imported=[];
+ if(file.name.toLowerCase().endsWith('.json')){
+  const arr=JSON.parse(txt);
+  if(Array.isArray(arr))imported=arr.filter(x=>typeof x.lat==='number'&&typeof x.lon==='number').map((x,i)=>({id:'wp_'+Date.now()+'_'+i,name:String(x.name||'Bod'),cat:WP_ICONS[x.cat]?x.cat:'view',note:String(x.note||''),lat:x.lat,lon:x.lon,ele:typeof x.ele==='number'?x.ele:null,date:Date.now()}));
+ }else{
+  const doc=new DOMParser().parseFromString(txt,'text/xml');
+  doc.querySelectorAll('wpt').forEach((w,i)=>{
+   const lat=parseFloat(w.getAttribute('lat')),lon=parseFloat(w.getAttribute('lon'));
+   if(isNaN(lat)||isNaN(lon))return;
+   const name=(w.querySelector('name')?.textContent||'Bod '+(i+1)).trim();
+   const note=(w.querySelector('desc')?.textContent||'').trim();
+   const catRaw=(w.querySelector('type')?.textContent||'').trim();
+   const ele=parseFloat(w.querySelector('ele')?.textContent);
+   imported.push({id:'wp_'+Date.now()+'_'+i,name,cat:WP_ICONS[catRaw]?catRaw:'view',note,lat,lon,ele:isNaN(ele)?null:Math.round(ele),date:Date.now()});
+  });
+ }
+ if(!imported.length){toast('V souboru nebyly nalezeny žádné platné body.');return}
+ for(const w of imported)await idb('waypoints','readwrite',s=>s.put(w));
+ await loadWaypoints();toast(`Importováno ${imported.length} bodů.`);
+}
+
+/* ---------- astronomie ---------- */
+function sunPos(ms,lat,lon){
+ const d=ms/86400000+2440587.5-2451545.0,g=(357.529+0.98560028*d)*D2R,q=280.459+0.98564736*d,L=(q+1.915*Math.sin(g)+0.02*Math.sin(2*g))*D2R,e=(23.439-3.6e-7*d)*D2R;
+ const ra=Math.atan2(Math.cos(e)*Math.sin(L),Math.cos(L)),dec=Math.asin(Math.sin(e)*Math.sin(L)),gm=((18.697374558+24.06570982441908*d)%24+24)%24,Hh=(gm*15+lon)*D2R-ra,la=lat*D2R;
+ const alt=Math.asin(Math.sin(la)*Math.sin(dec)+Math.cos(la)*Math.cos(dec)*Math.cos(Hh))*R2D;
+ const az=(Math.atan2(Math.sin(Hh),Math.cos(Hh)*Math.sin(la)-Math.tan(dec)*Math.cos(la))*R2D+540)%360;return{alt,az}}
+const refr=a=>a>60?0:a>-1?1.02/Math.tan((a+10.3/(a+5.11))*D2R)/60:0.647;
+const visAlt=a=>a+refr(a)+0.2666;
+function dateParts(){const v=$('date').value||'2026-01-01';return v.split('-').map(Number)}
+function simDate(min){const[y,m,d]=dateParts();return new Date(y,m-1,d,Math.floor(min/60),min%60,0)}
+const hm=t=>{if(t==null)return'—';const d=new Date(Math.round(t/60000)*60000);return pad(d.getHours())+':'+pad(d.getMinutes())};
+const dur=m=>{m=Math.round(Math.abs(m));return m>=60?`${Math.floor(m/60)} h ${pad(m%60)} min`:`${m} min`};
+function hzAt(az){const a=((az%360)+360)%360,i=Math.floor(a),f=a-i,v=HZ[i]*(1-f)+HZ[(i+1)%360]*f;return Math.max(v,DIP)}
+
+function computeShadow(){
+ const{nx,ny,H,GX,GY,INV,dx}=G,t=simDate(+$('time').value).getTime(),sp=sunPos(t,G.latc,G.lonc),app=sp.alt+refr(sp.alt);
+ G.sun=sp;G.sunApp=app;const sh=G.shadow||(G.shadow=new Uint8Array(nx*ny));
+ if(app<=0){sh.fill(0);G.night=true;return}
+ G.night=false;const az=sp.az*D2R,ca=Math.cos(app*D2R),sx=Math.sin(az)*ca,sy=Math.cos(az)*ca,sz=Math.sin(app*D2R),ta=Math.tan(app*D2R),di=Math.sin(az),dj=-Math.cos(az),hmax=G.max;
+ for(let j=0,k=0;j<ny;j++)for(let i=0;i<nx;i++,k++){
+  if((-GX[k]*sx-GY[k]*sy+sz)*INV[k]<=0){sh[k]=0;continue}
+  const h0=H[k]+.3;let fx=i,fy=j,lit=1;
+  for(let d=1;;d++){fx+=di;fy+=dj;if(fx<0||fy<0||fx>=nx-1||fy>=ny-1)break;const hr=h0+d*dx*ta;if(hr>hmax)break;
+   const ix=fx|0,iy=fy|0,ax=fx-ix,ay=fy-iy,p=iy*nx+ix,h=H[p]*(1-ax)*(1-ay)+H[p+1]*ax*(1-ay)+H[p+nx]*(1-ax)*ay+H[p+nx+1]*ax*ay;
+   if(h>hr){lit=0;break}}
+  sh[k]=lit}}
+function computeHorizon(){
+ HZ=null;SD=null;if(!G||!sel)return;const o=ll2g(sel.lat,sel.lon);if(!o.in)return;
+ const h0=sampleG(o.x,o.y)+1.7,out=new Float32Array(360),nx=G.nx,ny=G.ny;
+ for(let a=0;a<360;a++){const r=a*D2R,di=Math.sin(r),dj=-Math.cos(r);let mx=-90;
+  for(let k=1;;k++){const fx=o.x+di*k,fy=o.y+dj*k;if(fx<0||fy<0||fx>nx-1||fy>ny-1)break;const dist=k*G.dx,h=sampleG(fx,fy)-dist*dist*KC,ang=Math.atan2(h-h0,dist)*R2D;if(ang>mx)mx=ang}
+  out[a]=mx}
+ DIP=-Math.sqrt(2*Math.max(0,h0-G.min)/EARTH)*R2D*0.93;HZ=out}
+function scanDay(){
+ SD=null;if(!HZ)return;const[y,m,d]=dateParts(),t0=new Date(y,m-1,d).getTime(),t1=new Date(y,m-1,d+1).getTime(),step=30000,n=Math.round((t1-t0)/step);
+ const ev=[],pts=[];let pv=false,pf=false,pd=0,pfd=0,sec=0,rise=null,set=null;
+ for(let s=0;s<=n;s++){const t=t0+s*step,p=sunPos(t,sel.lat,sel.lon),va=visAlt(p.alt),dd=va-hzAt(p.az),vis=dd>0,fl=va>0;
+  if(s>0){if(vis!==pv){const f=pd/(pd-dd);ev.push({t:t-step+f*step,up:vis,az:p.az,alt:p.alt+refr(p.alt)})}
+   if(fl!==pf){const f=pfd/(pfd-va),tt=t-step+f*step;if(fl)rise=tt;else set=tt}}
+  if(vis)sec+=step/1000;pv=vis;pf=fl;pd=dd;pfd=va;if(s%20===0)pts.push([p.az,p.alt+refr(p.alt)])}
+ SD={ev,rise,set,sun:sec,pts}}
+function renderEvents(){
+ const el=$('sunEvents');if(!sel){el.textContent='Klepněte na mapu → analýza horizontu a východu/západu slunce za okolní terén.';return}
+ if(!SD){el.textContent='Bod leží mimo výpočetní grid – přepočítejte grid (⟳).';return}
+ let h=`<b>Rovný obzor:</b> východ ${hm(SD.rise)} · západ ${hm(SD.set)} (den ${SD.rise&&SD.set?dur((SD.set-SD.rise)/60000):'—'})<br>`;
+ let fu=-1,ld=-1;SD.ev.forEach((e,i)=>{if(e.up&&fu<0)fu=i;if(!e.up)ld=i});
+ if(!SD.ev.length)h+='Slunce během dne není nad terénem.<br>';
+ SD.ev.forEach((e,i)=>{let x='';if(e.up){x=`▲ Slunce <b>vyjde nad terén</b> v <b>${hm(e.t)}</b> (azimut ${Math.round(e.az)}°)`;if(i===fu&&SD.rise)x+=` – o ${dur((e.t-SD.rise)/60000)} ${e.t>=SD.rise?'později':'dříve'} než na rovném obzoru`}
+  else{x=`▼ Slunce <b>zapadne za terén</b> v <b>${hm(e.t)}</b> (azimut ${Math.round(e.az)}°)`;if(i===ld&&SD.set)x+=` – o ${dur((SD.set-e.t)/60000)} ${e.t<=SD.set?'dříve':'později'} než na rovném obzoru`}h+=x+'<br>'});
+ h+=`<b>Přímé slunce celkem:</b> ${dur(SD.sun/60)}`;el.innerHTML=h}
+function updateSunInfo(){
+ const p=sel||{lat:G?G.latc:49.8,lon:G?G.lonc:15.5},sp=sunPos(simDate(+$('time').value).getTime(),p.lat,p.lon),app=sp.alt+refr(sp.alt);
+ let s=`Slunce: azimut <b>${sp.az.toFixed(0)}°</b>, výška <b>${app.toFixed(1)}°</b>`;
+ if(HZ&&sel){const hz=hzAt(sp.az);s+=visAlt(sp.alt)>hz?' – <b style="color:#ffd54f">přímé slunce</b>':` – <b style="color:#ef9a9a">zakryto terénem</b> (horizont ${hz.toFixed(1)}°)`}
+ else if(app<=0)s+=' – pod obzorem';$('sunInfo').innerHTML=s}
+function drawHorizon(){
+ const c=$('hzCanvas'),f=fit(c);if(!f)return;const{x,w,h}=f;x.clearRect(0,0,w,h);x.font='11px sans-serif';
+ if(!HZ||!SD){x.fillStyle='#8b98a5';x.fillText('Klepněte na mapu pro profil horizontu',10,h/2);return}
+ let mxh=-90,mxs=0;for(const v of HZ)mxh=Math.max(mxh,v);for(const p of SD.pts)mxs=Math.max(mxs,p[1]);
+ const ymax=Math.max(15,Math.ceil((Math.max(mxh,mxs)+3)/5)*5),ymin=-5,pl=28,pr=6,pt=6,pb=18,X=a=>pl+a/360*(w-pl-pr),Y=e=>pt+(ymax-e)/(ymax-ymin)*(h-pt-pb);
+ x.strokeStyle='#26323f';x.fillStyle='#8b98a5';x.lineWidth=1;const st=ymax>40?10:5;
+ for(let e=0;e<=ymax;e+=st){x.beginPath();x.moveTo(pl,Y(e));x.lineTo(w-pr,Y(e));x.stroke();x.fillText(e+'°',2,Y(e)+4)}
+ [['S',0],['V',90],['J',180],['Z',270],['S',360]].forEach(([t,a])=>{x.beginPath();x.moveTo(X(a),pt);x.lineTo(X(a),h-pb);x.stroke();x.fillText(t,X(a)-3,h-5)});
+ x.beginPath();x.moveTo(X(0),Y(ymin));for(let a=0;a<=360;a++)x.lineTo(X(a),Y(Math.max(ymin,hzAt(a))));x.lineTo(X(360),Y(ymin));x.closePath();x.fillStyle='#5b4636';x.fill();x.strokeStyle='#a9825f';x.stroke();
+ x.strokeStyle='#ffd54f';x.lineWidth=2;x.beginPath();let first=true,pa=-1;
+ for(const p of SD.pts){if(p[1]<ymin){first=true;continue}if(p[0]<pa-180)first=true;pa=p[0];if(first){x.moveTo(X(p[0]),Y(p[1]));first=false}else x.lineTo(X(p[0]),Y(p[1]))}x.stroke();x.lineWidth=1;
+ x.fillStyle='#fff';SD.ev.forEach(e=>{x.beginPath();x.arc(X(e.az),Y(e.alt),3.5,0,7);x.fillStyle=e.up?'#66bb6a':'#ef5350';x.fill();x.fillStyle='#fff';x.fillText(hm(e.t),clamp(X(e.az)-14,pl,w-36),Y(e.alt)-6)});
+ const sp=sunPos(simDate(+$('time').value).getTime(),sel.lat,sel.lon),ap=sp.alt+refr(sp.alt);
+ if(ap>ymin){x.beginPath();x.arc(X(sp.az),Y(ap),6,0,7);x.fillStyle=visAlt(sp.alt)>hzAt(sp.az)?'#ffeb3b':'#b71c1c';x.fill();x.strokeStyle='#fff';x.stroke()}}
+
+/* ---------- režim 2: statistiky a profil (+ LIDAR DMR 5G zpřesnění) ---------- */
+function computeStats(){
+ const{H,SL,nx}=G,{i0,i1,j0,j1}=G.vp;let mn=1e9,mx=-1e9,sum=0,c=0,ms=0;
+ for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const k=j*nx+i,h=H[k];if(h<mn)mn=h;if(h>mx)mx=h;sum+=h;c++;if(SL[k]>ms)ms=SL[k]}
+ $('stats').innerHTML=`<div>Min. výška<b>${mn.toFixed(0)} m</b></div><div>Max. výška<b>${mx.toFixed(0)} m</b></div><div>Průměr<b>${(sum/c).toFixed(0)} m</b></div><div>Převýšení<b>${(mx-mn).toFixed(0)} m</b></div><div>Max. sklon<b>${ms.toFixed(1)}°</b></div><div>Buňka gridu<b>${G.dx.toFixed(0)} m</b></div>`}
+function finishProfile(len,n,z,isLidar){
+ const zs=new Float32Array(n+1);for(let i=0;i<=n;i++){const p=z[Math.max(0,i-1)],q=z[Math.min(n,i+1)];zs[i]=isLidar?z[i]:(p+z[i]+q)/3}
+ let up=0,dn=0,anc=zs[0],hi=0;const thr=isLidar?0.8:2;
+ for(let i=0;i<=n;i++){const d=zs[i]-anc;if(d>=thr){up+=d;anc=zs[i]}else if(d<=-thr){dn-=d;anc=zs[i]}if(zs[i]>zs[hi])hi=i}
+ PR={len,n,z:zs,up,dn,hi};
+ $('profSrc').hidden=!isLidar;
+ $('profInfo').innerHTML=`Délka: <b>${len>=1000?(len/1000).toFixed(2)+' km':len.toFixed(0)+' m'}</b> · nastoupáno <b>+${up.toFixed(0)} m</b> · klesání <b>−${dn.toFixed(0)} m</b><br>Rozdíl A–B: <b>${(zs[n]-zs[0]>=0?'+':'')+(zs[n]-zs[0]).toFixed(0)} m</b> (A ${zs[0].toFixed(0)} m → B ${zs[n].toFixed(0)} m) · nejvyšší bod <b>${zs[hi].toFixed(0)} m</b> ve vzdálenosti ${(len*hi/n/1000).toFixed(2)} km`;
+ drawProfile();
+}
+let profSeq=0;
+function computeProfile(){
+ PR=null;$('profSrc').hidden=true;const info=$('profInfo');
+ if(!G||!A||!B){info.textContent=A?'Nastavte ještě bod B.':'Klepněte na mapu a vyberte body A a B.';drawProfile();return}
+ const a=ll2g(A.lat,A.lon),b=ll2g(B.lat,B.lon);
+ if(!a.in||!b.in){info.textContent='Bod A nebo B leží mimo výpočetní grid – přepočítejte grid (⟳) nebo přibližte mapu.';drawProfile();return}
+ const len=hav(A,B),n=clamp(Math.ceil(len/(G.dx*.5)),2,800),z=new Float32Array(n+1);
+ for(let i=0;i<=n;i++){const f=i/n;z[i]=sampleG(a.x+(b.x-a.x)*f,a.y+(b.y-a.y)*f)}
+ finishProfile(len,n,z,false);
+ if(!S.offline&&S.lidarOn&&len<=15000){
+  const seq=++profSeq,pA=A,pB=B,ln=clamp(Math.ceil(len/3),20,500);
+  const paths=[[u2wm(lon2u(pA.lon)),v2wm(lat2v(pA.lat))],[u2wm(lon2u(pB.lon)),v2wm(lat2v(pB.lat))]];
+  const geom=encodeURIComponent(JSON.stringify({paths,spatialReference:{wkid:3857}}));
+  fetch(`https://ags.cuzk.gov.cz/arcgis2/rest/services/dmr5gwm/ImageServer/getSamples?geometry=${geom}&geometryType=esriGeometryPolyline&sampleCount=${ln+1}&returnFirstValueOnly=true&f=json`)
+   .then(r=>r.ok?r.json():null).then(j=>{
+    if(seq!==profSeq||A!==pA||B!==pB||!j||!j.samples||j.samples.length<10)return;
+    const lz=new Float32Array(j.samples.length);
+    for(let i=0;i<lz.length;i++){const v=parseFloat(j.samples[i].value);if(isNaN(v)||v<-100)return;lz[i]=v}
+    finishProfile(len,lz.length-1,lz,true);
+   }).catch(()=>{});
+ }
+}
+function drawProfile(){
+ const f=fit($('profCanvas'));if(!f)return;const{x,w,h}=f;x.clearRect(0,0,w,h);x.font='11px sans-serif';
+ if(!PR){x.fillStyle='#8b98a5';x.fillText('Elevační profil A → B',10,h/2);return}
+ const pl=38,pr=8,pt=8,pb=18;let mn=1e9,mx=-1e9;for(const v of PR.z){mn=Math.min(mn,v);mx=Math.max(mx,v)}mn-=5;mx+=5;
+ const X=d=>pl+d/PR.len*(w-pl-pr),Y=e=>h-pb-(e-mn)/(mx-mn)*(h-pt-pb);
+ x.strokeStyle='#26323f';x.fillStyle='#8b98a5';for(let i=0;i<=3;i++){const e=mn+(mx-mn)*i/3;x.beginPath();x.moveTo(pl,Y(e));x.lineTo(w-pr,Y(e));x.stroke();x.fillText(e.toFixed(0)+' m',2,Y(e)+4)}
+ [0,.5,1].forEach(q=>x.fillText((PR.len*q/1000).toFixed(2)+' km',clamp(X(PR.len*q)-18,pl-6,w-48),h-4));
+ x.beginPath();x.moveTo(X(0),h-pb);for(let i=0;i<=PR.n;i++)x.lineTo(X(PR.len*i/PR.n),Y(PR.z[i]));x.lineTo(X(PR.len),h-pb);x.closePath();x.fillStyle='rgba(79,195,247,.25)';x.fill();
+ x.beginPath();for(let i=0;i<=PR.n;i++){const px=X(PR.len*i/PR.n),py=Y(PR.z[i]);i?x.lineTo(px,py):x.moveTo(px,py)}x.strokeStyle='#4fc3f7';x.lineWidth=2;x.stroke();x.lineWidth=1;
+ const hx=X(PR.len*PR.hi/PR.n),hy=Y(PR.z[PR.hi]);x.fillStyle='#ffca28';x.beginPath();x.moveTo(hx,hy-2);x.lineTo(hx-5,hy-10);x.lineTo(hx+5,hy-10);x.fill();
+ if(profHover){const px=X(profHover.d);x.strokeStyle='#fff';x.beginPath();x.moveTo(px,pt);x.lineTo(px,h-pb);x.stroke()}}
+function profPointer(e){
+ if(!PR)return;const r=$('profCanvas').getBoundingClientRect(),d=clamp((e.clientX-r.left-38)/(r.width-46),0,1),i=Math.round(d*PR.n),f=i/PR.n;
+ const sl=i>0?(PR.z[i]-PR.z[i-1])/(PR.len/PR.n)*100:0;
+ profHover={d:PR.len*f,lat:A.lat+(B.lat-A.lat)*f,lon:A.lon+(B.lon-A.lon)*f};
+ $('profTip').textContent=`${(PR.len*f/1000).toFixed(2)} km · ${PR.z[i].toFixed(0)} m n. m. · sklon ${sl.toFixed(1)} %`;drawProfile();dirty=true}
+
+/* ---------- režim 3: viditelnost (lokální i velký dosah z rozhleden) ---------- */
+function runViewshedOn(g){
+ const o=ll2g(obs.lat,obs.lon,g);if(!o||!o.in)return null;
+ const{nx,ny,H,dx}=g,hO=+$('obsH').value,hT=+$('tgtH').value,Rm=+$('vsR').value*1000,rc=Rm/dx,eye=sampleG(o.x,o.y,g)+hO,vs=new Uint8Array(nx*ny);
+ let vis=0,tot=0,far=0;
+ for(let j=Math.max(0,Math.floor(o.y-rc));j<=Math.min(ny-1,Math.ceil(o.y+rc));j++)for(let i=Math.max(0,Math.floor(o.x-rc));i<=Math.min(nx-1,Math.ceil(o.x+rc));i++){
+  const ddx=i-o.x,ddy=j-o.y,gd=Math.hypot(ddx,ddy),dist=gd*dx;if(dist>Rm)continue;const k=j*nx+i;tot++;
+  if(gd<1){vs[k]=1;vis++;continue}
+  const tAng=(H[k]+hT-dist*dist*KC-eye)/dist,n=Math.ceil(gd);let ok=1;
+  for(let s=1;s<n;s++){const f=s/n,r=dist*f,a=(sampleG(o.x+ddx*f,o.y+ddy*f,g)-r*r*KC-eye)/r;if(a>tAng){ok=0;break}}
+  if(ok){vs[k]=1;vis++;if(dist>far)far=dist}else vs[k]=2}
+ g.vs=vs;
+ if(!g.cvs){g.cvs=document.createElement('canvas');g.cvs.width=nx;g.cvs.height=ny;g.cx=g.cvs.getContext('2d');g.img=g.cx.createImageData(nx,ny)}
+ const d=g.img.data;
+ for(let k=0;k<nx*ny;k++){const p=k*4,v=vs[k];if(v===1){d[p]=76;d[p+1]=175;d[p+2]=80;d[p+3]=115}else if(v===2){d[p]=229;d[p+1]=57;d[p+2]=53;d[p+3]=85}else d[p+3]=0}
+ g.cx.putImageData(g.img,0,0);
+ return{eye,hO,vis,tot,far,dx};
+}
+function renderVsInfo(r){
+ const visTxt=wx&&typeof wx.visibility==='number'?` · meteorologická dohlednost: <b>${(wx.visibility/1000).toFixed(1)} km</b>`:'';
+ $('vsInfo').innerHTML=`Pozorovatel ${r.eye-r.hO>0?(r.eye-r.hO).toFixed(0):'0'} m n. m. (+${r.hO} m)<br>Viditelné: <b>${(100*r.vis/Math.max(1,r.tot)).toFixed(0)} %</b> okruhu (${(r.vis*r.dx*r.dx/1e6).toFixed(1)} km² z ${(r.tot*r.dx*r.dx/1e6).toFixed(1)} km²)<br>Nejvzdálenější viditelný bod: <b>${(r.far/1000).toFixed(2)} km</b>${visTxt}`;
+}
+async function ensureWideViewshed(){
+ const Rm=+$('vsR').value*1000;
+ if(!obs||Rm<=8000){GW=null;return}
+ const uObs=lon2u(obs.lon),vObs=lat2v(obs.lat),latc=obs.lat;
+ const side=(Rm*2.2)/(CIRC*Math.cos(latc*D2R));
+ if(GW&&Math.abs(GW.u0+GW.cu*GW.nx/2-uObs)<GW.cu*3&&Math.abs(GW.v0+GW.cu*GW.ny/2-vObs)<GW.cu*3&&Math.abs(GW.nx*GW.cu-side)/side<0.15){
+  const r=runViewshedOn(GW);if(r)renderVsInfo(r);dirty=true;return;
+ }
+ if(wideBusy)return;wideBusy=true;
+ try{
+  const res=await makeGrid(uObs,vObs,side,260,11);
+  if(res.grid&&obs){GW=res.grid;const r=runViewshedOn(GW);if(r)renderVsInfo(r);dirty=true}
+ }catch(e){}
+ wideBusy=false;
+}
+function computeViewshed(){
+ const info=$('vsInfo');G.vs=null;
+ if(!obs){GW=null;info.textContent='Klepnutím na mapu nebo výběrem rozhledny umístěte pozorovatele.';return}
+ const Rm=+$('vsR').value*1000;
+ if(Rm>8000){
+  info.textContent='Počítám velkoplošnou viditelnost…';
+  ensureWideViewshed();
+  return;
+ }
+ GW=null;
+ const o=ll2g(obs.lat,obs.lon);if(!o.in){info.textContent='Pozorovatel je mimo výpočetní grid – přepočítejte grid (⟳).';return}
+ const r=runViewshedOn(G);if(r)renderVsInfo(r);
+}
+
+/* ---------- režim 4: závětří ---------- */
+function computeWind(){
+ const{nx,ny,H,GX,GY,dx}=G,wd=wind*D2R,ux=Math.sin(wd),uy=Math.cos(wd),di=ux,dj=-uy,steps=Math.ceil(+$('shDist').value/dx),W_=new Uint8Array(nx*ny),L_=new Uint8Array(nx*ny),t25=Math.tan(25*D2R);
+ for(let j=0,k=0;j<ny;j++)for(let i=0;i<nx;i++,k++){
+  const gm=Math.hypot(GX[k],GY[k]),sf=Math.min(1,gm/t25),c=gm>1e-6?(-GX[k]*ux-GY[k]*uy)/gm:0,h0=H[k];let sx=0,fx=i,fy=j;
+  for(let s=1;s<=steps;s++){fx+=di;fy+=dj;if(fx<0||fy<0||fx>=nx-1||fy>=ny-1)break;const ix=fx|0,iy=fy|0,ax=fx-ix,ay=fy-iy,p=iy*nx+ix,h=H[p]*(1-ax)*(1-ay)+H[p+1]*ax*(1-ay)+H[p+nx]*(1-ax)*ay+H[p+nx+1]*ax*ay,a=Math.atan2(h-h0,s*dx)*R2D;if(a>sx)sx=a}
+  const sh=clamp((sx-3)/9,0,1),wv=(c>0?c*sf:0)*(1-sh),lv=Math.max(c<0?-c*sf*.9:0,sh);W_[k]=wv*255;L_[k]=lv*255}
+ G.W=W_;G.L=L_;
+ $('windInfo').innerHTML=`Vítr z ${windName(wind)} (${wind}°): návětrné svahy jsou vyznačeny oranžově, závětří za hřebeny (úhel překážky nad ~3° do ${(+$('shDist').value/1000)} km proti větru) a svahy odvrácené od větru zeleně.`}
+const DIRS=['N','NE','E','SE','S','SW','W','NW'],windName=a=>DIRS[Math.round(((a%360)+360)%360/45)%8];
+
+/* ---------- vykreslení ---------- */
+const LUT=(()=>{const st=[[0,60,130,70],[100,60,130,70],[250,120,170,80],[400,190,200,110],[600,215,190,120],[800,190,150,95],[1000,160,115,80],[1250,150,130,120],[1450,205,200,195],[1700,255,255,255]],r=new Uint8Array(1024),g=new Uint8Array(1024),b=new Uint8Array(1024);
+ for(let i=0;i<1024;i++){const h=i/1023*1700;let k=1;while(k<st.length-1&&st[k][0]<h)k++;const a=st[k-1],c=st[k],f=(h-a[0])/(c[0]-a[0]||1);r[i]=a[1]+(c[1]-a[1])*f;g[i]=a[2]+(c[2]-a[2])*f;b[i]=a[3]+(c[3]-a[3])*f}return{r,g,b}})();
+function renderGrid(){
+ const{nx,ny,H,GX,GY,INV,SL}=G;
+ if(!G.cvs){G.cvs=document.createElement('canvas');G.cvs.width=nx;G.cvs.height=ny;G.cx=G.cvs.getContext('2d');G.img=G.cx.createImageData(nx,ny)}
+ const d=G.img.data,m=mode;let lx=-.5,ly=.5,lz=.707;
+ if(m===1&&G.sun&&!G.night){const a=G.sunApp*D2R,az=G.sun.az*D2R;lx=Math.sin(az)*Math.cos(a);ly=Math.cos(az)*Math.cos(a);lz=Math.sin(a)}
+ const ci=+S.contour,slopeOn=m===2&&$('slopeMap').checked,thr=+S.slopeThr,vs=m===3?G.vs:null,WD=m===4?G.W:null,LE=m===4?G.L:null,sh=G.shadow;
+ const windLidarOnly=(m===4&&S.windLidar);
+ const hypsoVisible=!(m===2&&!S.hypsoOn&&S.lidarOn);
+ for(let j=0,k=0;j<ny;j++)for(let i=0;i<nx;i++,k++){
+  const h=H[k],li=clamp((h/1700*1023)|0,0,1023);let r=LUT.r[li],g=LUT.g[li],b=LUT.b[li];
+  let ill=(-GX[k]*lx-GY[k]*ly+lz)*INV[k];if(ill<0)ill=0;let s;
+  if(m===1){if(G.night){s=.32+.25*ill;r*=.55;g*=.65}else if(sh[k]===0){s=.34;r*=.62;g*=.7;b*=.95}else s=.45+.7*ill}
+  else if(m===2&&S.lidarOn){s=.85+.25*ill}
+  else s=.3+.95*ill;
+  r*=s;g*=s;b*=s;
+  let alpha=255;
+  if(windLidarOnly){
+   alpha=0;
+   if(WD){const w=WD[k]/255,l=LE[k]/255;if(w>l&&w>.05){r=255;g=112;b=67;alpha=Math.round(Math.min(.62,w*.7)*255)}else if(l>.05){r=66;g=200;b=120;alpha=Math.round(Math.min(.58,l*.65)*255)}}
+   if(ci>0){const c=Math.floor(h/ci);let e=0;if(i<nx-1&&Math.floor(H[k+1]/ci)!==c)e=1;else if(j<ny-1&&Math.floor(H[k+nx]/ci)!==c)e=1;if(e){r=255;g=213;b=79;alpha=Math.max(alpha,c%5===0?165:95)}}
+  }else if(!hypsoVisible){
+   alpha=0;
+   if(slopeOn&&SL[k]>=thr){const t=Math.min(1,(SL[k]-thr)/15);r=255;g=200*(1-t);b=40;alpha=175}
+   if(ci>0){const c=Math.floor(h/ci);let e=0;if(i<nx-1&&Math.floor(H[k+1]/ci)!==c)e=1;else if(j<ny-1&&Math.floor(H[k+nx]/ci)!==c)e=1;if(e){r=255;g=213;b=79;alpha=Math.max(alpha,c%5===0?175:105)}}
+  }else{
+   if(ci>0){const c=Math.floor(h/ci);let e=0;if(i<nx-1&&Math.floor(H[k+1]/ci)!==c)e=1;else if(j<ny-1&&Math.floor(H[k+nx]/ci)!==c)e=1;if(e){const f=c%5===0?.4:.62;r*=f;g*=f;b*=f}}
+   if(slopeOn&&SL[k]>=thr){const t=Math.min(1,(SL[k]-thr)/15);r=r*.35+255*.65;g=g*.35+(200*(1-t))*.65;b=b*.35+40*.65}
+   if(vs){const v=vs[k];if(v===1){r=r*.5+76*.5;g=g*.5+175*.5;b=b*.5+80*.5}else if(v===2){r=r*.6+229*.4;g=g*.6+57*.4;b=b*.6+53*.4}}
+   if(WD){const w=WD[k]/255,l=LE[k]/255;if(w>l&&w>.05){const a=Math.min(.75,w*.8);r=r*(1-a)+255*a;g=g*(1-a)+112*a;b=b*(1-a)+67*a}else if(l>.05){const a=Math.min(.7,l*.75);r=r*(1-a)+66*a;g=g*(1-a)+200*a;b=b*(1-a)+120*a}}
+  }
+  const p=k*4;d[p]=r;d[p+1]=g;d[p+2]=b;d[p+3]=alpha}
+ G.cx.putImageData(G.img,0,0)}
+const baseImgs=new Map();
+function baseTile(src,z,x,y){const k=S.basemap+z+'/'+x+'/'+y;let im=baseImgs.get(k);if(!im){im=new Image();im.onload=()=>{dirty=true};im.onerror=()=>{im.bad=true};im.src=BASES[src].url(z,x,y);baseImgs.set(k,im);if(baseImgs.size>400)baseImgs.delete(baseImgs.keys().next().value)}return im}
+function drawBase(sc){
+ const src=BASES[S.basemap],tz=clamp(Math.round(V.z),2,src.max),n=2**tz,ts=sc/n,xa=Math.max(0,Math.floor((V.u-W/2/sc)*n)),xb=Math.min(n-1,Math.floor((V.u+W/2/sc)*n)),ya=Math.max(0,Math.floor((V.v-H/2/sc)*n)),yb=Math.min(n-1,Math.floor((V.v+H/2/sc)*n));
+ if((xb-xa+1)*(yb-ya+1)>100)return;ctx.globalAlpha=S.opac/100;
+ for(let y=ya;y<=yb;y++)for(let x=xa;x<=xb;x++){const im=baseTile(S.basemap,tz,x,y);if(im.complete&&im.naturalWidth)ctx.drawImage(im,(x/n-V.u)*sc+W/2,(y/n-V.v)*sc+H/2,ts+.5,ts+.5)}
+ ctx.globalAlpha=1}
+function dot(x,y,r,fill,stroke,lw=2){ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}
+function pin(p,txt,col){const[x,y]=ll2s(p.lat,p.lon);dot(x,y,12,col,'#fff');ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,x,y+.5);return[x,y]}
+function arrow(x,y,az,len){const a=az*D2R,dx=Math.sin(a),dy=-Math.cos(a),x2=x+dx*len,y2=y+dy*len;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.moveTo(x2,y2);ctx.lineTo(x2-dx*8+dy*5,y2-dy*8-dx*5);ctx.moveTo(x2,y2);ctx.lineTo(x2-dx*8-dy*5,y2-dy*8+dx*5);ctx.stroke()}
+
+function drawLabels(){
+ if(!S.labels)return;
+ const z=V.z,boxes=[],F=S.filters;
+ ctx.textBaseline='middle';
+ if(F.waypoints&&waypoints.length){
+  for(const w of waypoints){
+   const[x,y]=ll2s(w.lat,w.lon);
+   if(x<-60||y<-30||x>W+60||y>H+30)continue;
+   const lbl=(WP_ICONS[w.cat]||'📌')+' '+w.name;
+   ctx.font='bold 11.5px -apple-system,system-ui,sans-serif';
+   const tw=ctx.measureText(lbl).width,bx=x-tw/2-4,by=y-18,bw=tw+8,bh=16;
+   boxes.push([bx,by,bw,bh]);
+   dot(x,y,5,'#29b6f6','#fff',1.5);
+   ctx.textAlign='center';
+   ctx.lineWidth=3;ctx.strokeStyle='rgba(10,14,20,0.92)';ctx.strokeText(lbl,x,y-11);
+   ctx.fillStyle='#4fc3f7';ctx.fillText(lbl,x,y-11);
+  }
+ }
+ if(!pois.length)return;
+ const vis=pois.filter(p=>{
+  if(p.kind==='city')return F.settlements&&z>=7;
+  if(p.kind==='town')return F.settlements&&z>=9;
+  if(p.kind==='village')return F.settlements&&z>=11.5;
+  if(p.kind==='tower')return F.towers&&z>=10;
+  if(p.kind==='ruin')return F.ruins&&z>=11;
+  if(p.kind==='underground')return F.underground&&z>=11.5;
+  return F.peaks&&z>=11.5;
+ }).sort((a,b)=>a.prio-b.prio||(b.ele||0)-(a.ele||0));
+ for(const p of vis){
+  const[x,y]=ll2s(p.lat,p.lon);
+  if(x<-60||y<-30||x>W+60||y>H+30)continue;
+  let lbl=p.name,fs=11,col='#e6edf3',offY=0,dotCol=null;
+  if(p.kind==='city'){fs=14;col='#ffffff'}
+  else if(p.kind==='town'){fs=12.5;col='#f0f6fc'}
+  else if(p.kind==='tower'){fs=11.5;col='#ffd54f';lbl='🗼 '+p.name+(p.ele?` (${Math.round(p.ele)} m)`:'');offY=-10;dotCol='#ffd54f'}
+  else if(p.kind==='ruin'){fs=11;col='#ffab91';lbl='🏰 '+p.name;offY=-10;dotCol='#ff8a65'}
+  else if(p.kind==='underground'){fs=11;col='#ce93d8';lbl='🕳 '+p.name;offY=-10;dotCol='#ba68c8'}
+  else if(p.kind==='peak'){fs=11;col='#a5d6a7';lbl='▲ '+p.name+(p.ele?` ${Math.round(p.ele)} m`:'');offY=-9;dotCol='#81c784'}
+  else{fs=11;col='#cfd8e0'}
+  ctx.font=(p.prio<=2?'bold ':'')+fs+'px -apple-system,system-ui,sans-serif';
+  const tw=ctx.measureText(lbl).width,bx=x-tw/2-3,by=y+offY-fs/2-2,bw=tw+6,bh=fs+4;
+  if(boxes.some(b=>bx<b[0]+b[2]&&bx+bw>b[0]&&by<b[1]+b[3]&&by+bh>b[1]))continue;
+  boxes.push([bx,by,bw,bh]);
+  if(dotCol)dot(x,y,3.5,dotCol,'#0d1117',1.2);
+  ctx.textAlign='center';
+  ctx.lineWidth=3;ctx.strokeStyle='rgba(10,14,20,0.88)';ctx.strokeText(lbl,x,y+offY);
+  ctx.fillStyle=col;ctx.fillText(lbl,x,y+offY);
+ }
+}
+
+function draw(){
+ ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#0d1117';ctx.fillRect(0,0,W,H);const sc=scale();
+ if(mode===4&&S.windLidar)drawLidarLayer(sc,S.windLidarOpac/100,'source-over');
+ if(G&&G.cvs){ctx.imageSmoothingEnabled=true;ctx.drawImage(G.cvs,(G.u0-V.u)*sc+W/2,(G.v0-V.v)*sc+H/2,G.nx*G.cu*sc,G.ny*G.cu*sc)}
+ if(mode===3&&GW&&GW.cvs){ctx.imageSmoothingEnabled=true;ctx.drawImage(GW.cvs,(GW.u0-V.u)*sc+W/2,(GW.v0-V.v)*sc+H/2,GW.nx*GW.cu*sc,GW.ny*GW.cu*sc)}
+ if(S.basemap!=='none'&&!S.offline)drawBase(sc);
+ if(mode===2&&S.lidarOn){
+  const bl=(!S.hypsoOn&&S.basemap==='none')?'source-over':S.lidarBlend;
+  drawLidarLayer(sc,S.lidarOpac/100,bl);
+ }
+ drawLabels();
+ const mpp=CIRC*Math.cos(v2lat(V.v)*D2R)/sc;
+ if(gps){const[x,y]=ll2s(gps.lat,gps.lon);ctx.beginPath();ctx.arc(x,y,Math.max(6,gps.acc/mpp),0,7);ctx.fillStyle='rgba(66,133,244,.15)';ctx.fill();ctx.strokeStyle='rgba(66,133,244,.6)';ctx.lineWidth=1;ctx.stroke();dot(x,y,7,'#4285f4','#fff')}
+ if(mode===1||mode===4||mode===5){if(sel){const[x,y]=ll2s(sel.lat,sel.lon);dot(x,y,8,'#e91e63','#fff');
+  if(mode===1&&G&&G.sun){ctx.strokeStyle='#ffd54f';ctx.lineWidth=3;arrow(x,y,G.sun.az,70);if(G.sunApp>0)dot(x+Math.sin(G.sun.az*D2R)*78,y-Math.cos(G.sun.az*D2R)*78,7,'#ffeb3b','#f57f17')}}}
+ if(mode===4){ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=2;for(let yy=60;yy<H;yy+=110)for(let xx=40;xx<W;xx+=110)arrow(xx-Math.sin(wind*D2R)*14,yy+Math.cos(wind*D2R)*14,wind+180,28)}
+ if(mode===2){if(A&&B){const[x1,y1]=ll2s(A.lat,A.lon),[x2,y2]=ll2s(B.lat,B.lon);ctx.strokeStyle='#ffeb3b';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.setLineDash([])}
+  if(A)pin(A,'A','#2e7d32');if(B)pin(B,'B','#c62828');if(profHover){const[x,y]=ll2s(profHover.lat,profHover.lon);dot(x,y,6,'#fff','#000')}}
+ if(mode===3&&obs){const[x,y]=ll2s(obs.lat,obs.lon);ctx.beginPath();ctx.arc(x,y,+$('vsR').value*1000/mpp,0,7);ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1.5;ctx.setLineDash([6,5]);ctx.stroke();ctx.setLineDash([]);dot(x,y,9,'#ffeb3b','#000')}
+ ctx.textAlign='left';ctx.textBaseline='alphabetic';
+ const tgt=Math.max(60,Math.min(140,W/4)),m0=tgt*mpp,pw=Math.pow(10,Math.floor(Math.log10(m0))),nice=[1,2,5,10].map(v=>v*pw).filter(v=>v<=m0).pop()||pw;
+ $('scBar').style.width=(nice/mpp)+'px';$('scTxt').textContent=nice>=1000?nice/1000+' km':nice+' m'}
+
+/* ---------- přepočet režimů ---------- */
+function recompute(){
+ if(!G)return;
+ if(mode===1){computeShadow();if(hzStale){computeHorizon();hzStale=false;sdStale=true}if(sdStale){scanDay();sdStale=false;renderEvents()}updateSunInfo();drawHorizon()}
+ else if(mode===2){computeStats();computeProfile()}
+ else if(mode===3)computeViewshed();
+ else if(mode===4)computeWind();
+ renderGrid();dirty=true}
+function reqRecompute(){needRecompute=true;dirty=true}
+function frame(){if(needRecompute){needRecompute=false;try{recompute()}catch(e){toast('Chyba výpočtu: '+e.message,5000)}}if(dirty){dirty=false;draw()}requestAnimationFrame(frame)}
+
+/* ---------- teplota a tlak ---------- */
+const pStd=h=>Math.pow(1-(0.0065*h)/288.15,5.255);
+const REFT=[0.5,1.5,5.5,10.5,15.5,18.5,20.5,20.5,15.5,10.5,5.5,1.5];
+function model(h){const P0=+S.P0||1013.25,month=(dateParts()[1]||1)-1,tr=S.Tref===''||S.Tref==null||isNaN(+S.Tref)?REFT[month]:+S.Tref;return{T:tr-0.0065*h,P:P0*pStd(h)}}
+let wxT=null,wxCtl=null;
+function onSel(){updateStatus();clearTimeout(wxT);wx=null;if(!S.offline&&sel)wxT=setTimeout(fetchWx,600)}
+async function fetchWx(){
+ if(!sel||S.offline)return;const p=sel;wxCtl&&wxCtl.abort();wxCtl=new AbortController();const to=setTimeout(()=>wxCtl.abort(),8000);
+ try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat.toFixed(4)}&longitude=${p.lon.toFixed(4)}&current=temperature_2m,surface_pressure,relative_humidity_2m,wind_speed_10m,wind_direction_10m,visibility`,{signal:wxCtl.signal});if(!r.ok)throw new Error('http');const j=await r.json();if(p===sel&&j.current)wx={...j.current,elev:j.elevation}}catch(e){if(p===sel)wx=null}
+ clearTimeout(to);updateStatus();if(mode===3&&obs)reqRecompute()}
+function updateStatus(){
+ const el=$('status');if(!sel){el.innerHTML='Klepněte na mapu pro výběr bodu.'+(gps?` · GPS ±${Math.round(gps.acc)} m`:'');return}
+ const h=elevAt(sel);let T,P,src,extra='';const hh=isNaN(h)?0:h,m=model(hh);T=m.T;P=m.P;src='model';
+ if(wx&&typeof wx.temperature_2m==='number'){const eo=typeof wx.elev==='number'?wx.elev:hh;T=wx.temperature_2m+0.0065*(eo-hh);P=typeof wx.surface_pressure==='number'?wx.surface_pressure*pStd(hh)/pStd(eo):P;src='Open-Meteo';extra=` · ${wx.relative_humidity_2m}\u00a0% · vítr ${wx.wind_speed_10m}\u00a0km/h z ${wx.wind_direction_10m}°`}
+ else if(!S.offline)src='model (čekám na síť)';else src='model (offline)';
+ el.innerHTML=`📍 ${sel.lat.toFixed(5)}, ${sel.lon.toFixed(5)} · <b>${isNaN(h)?'—':h.toFixed(0)} m n. m.</b>${gps?` · GPS ±${Math.round(gps.acc)} m`:''}<br><b>${T.toFixed(1)} °C</b> · <b>${P.toFixed(0)} hPa</b>${extra} <span style="color:#8b98a5">(${src})</span>`}
+
+/* ---------- gesta ---------- */
+const ptrs=new Map();let gs=null;
+function zoomAround(mx,my,dz){const b=s2w(mx,my);V.z=clamp(V.z+dz,5,17.5);const a=s2w(mx,my);V.u+=b.u-a.u;V.v+=b.v-a.v;dirty=true}
+function hitMarker(x,y){const pts=[];if(mode===2){if(A)pts.push(['A',A]);if(B)pts.push(['B',B])}if(mode===3&&obs)pts.push(['O',obs]);for(const[n,p]of pts){const[sx,sy]=ll2s(p.lat,p.lon);if(Math.hypot(sx-x,sy-y)<28)return n}return null}
+function action(x,y){
+ const w=s2w(x,y),p={lat:v2lat(w.v),lon:u2lon(w.u)};
+ if(mode===2){if(nextAB==='A'){A=p;nextAB='B'}else{B=p;nextAB='A'}$('nextAB').textContent=nextAB;profHover=null;$('profTip').textContent=''}
+ else if(mode===3)obs=p;
+ sel=p;hzStale=true;onSel();reqRecompute()}
+cv.addEventListener('pointerdown',e=>{
+ cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(ptrs.size===1){const mouse=e.pointerType==='mouse';gs={k:'one',x0:e.clientX,y0:e.clientY,t0:performance.now(),moved:false,mouse,btn:e.button,drag:hitMarker(e.clientX,e.clientY),pan:false,last:{x:e.clientX,y:e.clientY}};
+  if(!mouse&&S.oneFinger==='pan'&&!gs.drag)gs.pan=true}
+ else if(ptrs.size===2){const[a,b]=[...ptrs.values()];gs={k:'two',d:Math.hypot(a.x-b.x,a.y-b.y)||1,mx:(a.x+b.x)/2,my:(a.y+b.y)/2}}
+ e.preventDefault()});
+cv.addEventListener('pointermove',e=>{
+ if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(!gs)return;
+ if(gs.k==='two'&&ptrs.size>=2){const[a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y)||1,mx=(a.x+b.x)/2,my=(a.y+b.y)/2,sc=scale();V.u-=(mx-gs.mx)/sc;V.v-=(my-gs.my)/sc;zoomAround(mx,my,Math.log2(d/gs.d));gs.d=d;gs.mx=mx;gs.my=my;gs.moved=true;return}
+ if(gs.k!=='one')return;const dx=e.clientX-gs.x0,dy=e.clientY-gs.y0,thr=gs.mouse?4:10;
+ if(!gs.moved&&Math.hypot(dx,dy)>thr){gs.moved=true;if(gs.mouse&&!gs.drag)gs.pan=true}
+ if(!gs.moved)return;
+ if(gs.drag){const w=s2w(e.clientX,e.clientY),p={lat:v2lat(w.v),lon:u2lon(w.u)};if(gs.drag==='A')A=p;else if(gs.drag==='B')B=p;else{obs=p;sel=p}dirty=true;return}
+ if(gs.pan){const sc=scale();V.u-=(e.clientX-gs.last.x)/sc;V.v-=(e.clientY-gs.last.y)/sc;gs.last={x:e.clientX,y:e.clientY};dirty=true}});
+function endPtr(e){
+ if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);const g=gs;
+ if(ptrs.size===0&&g){gs=null;
+  if(g.k==='one'){if(g.drag&&g.moved){sel=g.drag==='A'?A:g.drag==='B'?B:obs;hzStale=true;onSel();reqRecompute()}
+   else if(!g.moved&&performance.now()-g.t0<650&&(g.mouse?g.btn===0:S.oneFinger==='act')&&e.type==='pointerup')action(e.clientX,e.clientY);
+   else if(g.pan){updateTowerSelect();scheduleGrid()}}
+  else{updateTowerSelect();scheduleGrid()}}
+ else if(ptrs.size===1&&g){const q=[...ptrs.values()][0];gs={k:'one',x0:q.x,y0:q.y,t0:0,moved:true,mouse:false,drag:null,pan:S.oneFinger==='pan',last:{x:q.x,y:q.y}};scheduleGrid()}}
+cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',e=>{e.preventDefault();zoomAround(e.clientX,e.clientY,-e.deltaY*(e.deltaMode?0.03:0.0016));updateTowerSelect();scheduleGrid()},{passive:false});
+document.addEventListener('gesturestart',e=>e.preventDefault());
+
+/* ---------- GPS ---------- */
+function locate(){
+ if(!navigator.geolocation){toast('Tento prohlížeč nepodporuje geolokaci.');return}
+ if(!window.isSecureContext)toast('Poloha vyžaduje zabezpečený kontext (HTTPS nebo localhost).',5000);else toast('Hledám polohu GPS…',20000);
+ navigator.geolocation.getCurrentPosition(p=>{
+  gps={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};V.u=lon2u(gps.lon);V.v=lat2v(gps.lat);if(V.z<12)V.z=13;
+  sel={lat:gps.lat,lon:gps.lon};if(mode===3)obs=sel;hzStale=true;onSel();toast(`Poloha nalezena: ±${Math.round(gps.acc)} m`);buildGrid()},
+  err=>{toast(err.code===1?'Přístup k poloze byl zamítnut. Povolte polohu pro tento web v nastavení prohlížeče / systému.':err.code===2?'Poloha není dostupná (slabý signál GPS nebo vypnuté služby určování polohy).':err.code===3?'Vypršel časový limit při zjišťování polohy. Zkuste to venku s výhledem na oblohu.':'Polohu se nepodařilo zjistit.',6000)},
+  {enableHighAccuracy:true,timeout:15000,maximumAge:0})}
+
+/* ---------- offline správa (vč. POI kraje) ---------- */
+let dlAbort=false,dlBusy=false;
+function regEstimate(){const r=KRAJE[$('regSel').selectedIndex],z=+$('regZ').value,c=rangeCount(tileRange(r,z));$('regEst').textContent=`≈ ${c} dlaždic, ≈ ${(c*0.128).toFixed(0)} MB v úložišti (+ města, vrcholy, rozhledny, zříceniny, podzemí)`}
+function renderRegions(){
+ $('regList').innerHTML=regions.length?regions.map(r=>`<div class="reg"><span><b>${r.name}</b> · z${r.zoom} · ${r.tiles} dl. · ${(r.bytes/1048576).toFixed(0)} MB${r.pois?` · ${r.pois} POI`:''}<br><small style="color:#8b98a5">${new Date(r.date).toLocaleDateString('cs-CZ')}</small></span><span><button data-ver="${r.id}">Ověřit</button> <button data-del="${r.id}">Smazat</button></span></div>`).join(''):'<div class="info">Žádný kraj není stažen.</div>'}
+async function downloadRegion(){
+ if(dlBusy)return;const reg=KRAJE[$('regSel').selectedIndex],z=+$('regZ').value,r=tileRange(reg,z),total=rangeCount(r);
+ if(!navigator.onLine||S.offline){toast('Pro stahování vypněte Offline režim a připojte se k internetu.');return}
+ try{await db()}catch(e){toast('IndexedDB není v tomto prohlížeči dostupná (soukromý režim?).',5000);return}
+ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+ dlBusy=true;dlAbort=false;$('regDl').disabled=true;$('regCancel').hidden=false;
+ const list=[];for(let y=r.y0;y<=r.y1;y++)for(let x=r.x0;x<=r.x1;x++)list.push([x,y]);
+ let idx=0,done=0,fail=0,bytes=0;
+ const upd=()=>{$('regBar').style.width=(100*done/total)+'%';$('regProg').textContent=`${done}/${total} dlaždic (${(100*done/total).toFixed(0)} %) · ${(bytes/1048576).toFixed(1)} MB${fail?` · chyb: ${fail}`:''}`};
+ const worker=async()=>{while(idx<list.length&&!dlAbort){const[x,y]=list[idx++],k=z+'/'+x+'/'+y;
+  try{const ex=await idb('tiles','readonly',s=>s.count(k));if(!ex){const dm=await fetchTileDm(z,x,y);await idb('tiles','readwrite',s=>s.put(dm.buffer,k))}bytes+=131072}catch(e){fail++}
+  done++;upd()}};
+ upd();await Promise.all(Array.from({length:6},worker));
+ let poiCount=0;
+ if(!dlAbort&&!fail){
+  $('regProg').textContent='Stahuji města, vrcholy, rozhledny, zříceniny a podzemí pro kraj…';
+  try{
+   const regPois=await queryOverpass(reg.minLat,reg.minLon,reg.maxLat,reg.maxLon,true);
+   await idb('poi','readwrite',s=>s.put(regPois,reg.name));
+   mergePois(regPois);poiCount=regPois.length;
+  }catch(e){}
+ }
+ if(dlAbort)toast('Stahování zrušeno (již stažené dlaždice zůstávají).');
+ else if(fail)toast(`Nepodařilo se stáhnout ${fail} dlaždic. Spusťte stahování znovu – hotové se přeskočí.`,6000);
+ else{await idb('regions','readwrite',s=>s.put({id:reg.name+'@'+z,name:reg.name,zoom:z,tiles:total,bytes:total*131072,pois:poiCount,date:Date.now(),range:r}));toast(`Kraj ${reg.name} je uložen (${poiCount} orientačních bodů).`)}
+ dlBusy=false;$('regDl').disabled=false;$('regCancel').hidden=true;await loadRegions()}
+async function delRegion(id){
+ const r=regions.find(q=>q.id===id);if(!r||!confirm(`Smazat offline data kraje ${r.name} (zoom ${r.zoom})?`))return;
+ const others=regions.filter(q=>q.id!==id&&q.zoom===r.zoom),keys=[];
+ for(let y=r.range.y0;y<=r.range.y1;y++)for(let x=r.range.x0;x<=r.range.x1;x++)if(!others.some(o=>x>=o.range.x0&&x<=o.range.x1&&y>=o.range.y0&&y<=o.range.y1))keys.push(r.zoom+'/'+x+'/'+y);
+ try{
+  await idb('tiles','readwrite',s=>{keys.forEach(k=>s.delete(k))});
+  if(!regions.some(q=>q.id!==id&&q.name===r.name))await idb('poi','readwrite',s=>s.delete(r.name));
+  await idb('regions','readwrite',s=>s.delete(id));
+ }catch(e){toast('Mazání selhalo: '+e.message)}
+ demCache.clear();await loadRegions();toast('Offline data smazána.')}
+async function verRegion(id){
+ const r=regions.find(q=>q.id===id);if(!r)return;let miss=0,tot=0;toast('Ověřuji…',30000);
+ for(let y=r.range.y0;y<=r.range.y1;y++)for(let x=r.range.x0;x<=r.range.x1;x++){tot++;try{if(!await idb('tiles','readonly',s=>s.count(r.zoom+'/'+x+'/'+y)))miss++}catch(e){miss++}}
+ toast(miss?`Chybí ${miss} z ${tot} dlaždic (Safari data mohl uvolnit). Stáhněte kraj znovu.`:`Kraj ${r.name}: všech ${tot} dlaždic je v pořádku.`,6000)}
+async function loadHgt(files){
+ for(const f of files){
+  const buf=await f.arrayBuffer(),n=Math.round(Math.sqrt(buf.byteLength/2));
+  if(n*n*2!==buf.byteLength||(n!==1201&&n!==3601)){toast(`${f.name}: neplatný rozměr (očekává se 1201×1201 nebo 3601×3601, 16bit).`,5000);continue}
+  let lat,lon;const m=/([NS])(\d{1,2})([EW])(\d{1,3})/i.exec(f.name);
+  if(m){lat=(m[1].toUpperCase()==='N'?1:-1)*+m[2];lon=(m[3].toUpperCase()==='E'?1:-1)*+m[4]}
+  else{const t=prompt(`Zadejte jihozápadní roh dlaždice ${f.name} jako "šířka,délka" (např. 49,14):`,'49,14');if(!t)continue;const q=t.split(',').map(Number);if(q.length<2||q.some(isNaN))continue;lat=q[0];lon=q[1]}
+  const dv=new DataView(buf),d=new Int16Array(n*n);for(let i=0;i<d.length;i++)d[i]=dv.getInt16(i*2,false);
+  hgts=hgts.filter(h=>h.name!==f.name);hgts.push({name:f.name,lat,lon,n,d})}
+ renderHgt();buildGrid()}
+function renderHgt(){$('hgtList').innerHTML=hgts.length?hgts.map(h=>`${h.name} (${h.n}×${h.n}, ${h.lat}°N ${h.lon}°E) <a href="#" data-hgt="${h.name}" style="color:#ef9a9a">odebrat</a>`).join('<br>'):'Žádný soubor není načten.'}
+
+/* ---------- UI ---------- */
+function setMode(m){mode=m;document.body.dataset.m=m;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',+b.dataset.m===m));if(m===3)updateTowerSelect();reqRecompute();setTimeout(()=>{if(m===1)drawHorizon();if(m===2)drawProfile()},60)}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setMode(+b.dataset.m));
+$('grab').onclick=()=>$('sheet').classList.toggle('min');
+$('fZi').onclick=()=>{zoomAround(W/2,H/2,.7);scheduleGrid()};$('fZo').onclick=()=>{zoomAround(W/2,H/2,-.7);scheduleGrid()};
+$('fGps').onclick=locate;$('fRe').onclick=()=>buildGrid();$('fSet').onclick=()=>{$('settings').hidden=false};$('closeSet').onclick=()=>{$('settings').hidden=true};
+function syncPan(){$('fPan').textContent=S.oneFinger==='pan'?'✋':'☝';$('fPan').title=S.oneFinger==='pan'?'1 prst: posun mapy':'1 prst: výběr bodu'}
+$('fPan').onclick=()=>{S.oneFinger=S.oneFinger==='pan'?'act':'pan';saveS();syncPan();toast(S.oneFinger==='pan'?'1 prst = posun mapy (výběr bodu vypnut)':'1 prst = výběr bodu (posun dvěma prsty)')};
+const tl=()=>{const m=+$('time').value;$('tlabel').textContent=pad(Math.floor(m/60))+':'+pad(m%60)};
+$('time').oninput=()=>{tl();reqRecompute()};
+$('date').onchange=()=>{sdStale=true;reqRecompute();updateStatus()};
+function setNow(){const n=new Date();$('date').value=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;$('time').value=n.getHours()*60+n.getMinutes();tl();sdStale=true;reqRecompute()}
+$('now').onclick=setNow;
+let playT=null;$('play').onclick=()=>{if(playT){clearInterval(playT);playT=null;$('play').textContent='▶';return}$('play').textContent='⏸';playT=setInterval(()=>{$('time').value=(+$('time').value+4)%1440;tl();reqRecompute()},130)};
+$('setA').onclick=()=>{nextAB='A';$('nextAB').textContent='A'};$('setB').onclick=()=>{nextAB='B';$('nextAB').textContent='B'};
+$('clrAB').onclick=()=>{A=B=null;nextAB='A';PR=null;profHover=null;$('nextAB').textContent='A';$('profTip').textContent='';reqRecompute()};
+$('lidarOn').onchange=()=>{S.lidarOn=$('lidarOn').checked;saveS();updateLidarBadge();reqRecompute()};
+$('lidarStyle').onchange=()=>{S.detail=$('lidarStyle').value;lidarState={ok:0,err:0,srcName:'',fallback:false};localLidarKey='';updateLidarBadge();saveS();dirty=true};
+$('lidarOpac').oninput=()=>{S.lidarOpac=+$('lidarOpac').value;$('lidarOpacV').textContent=S.lidarOpac;saveS();dirty=true};
+$('lidarBlend').onchange=()=>{S.lidarBlend=$('lidarBlend').value;saveS();dirty=true};
+$('hypsoOn').onchange=()=>{S.hypsoOn=$('hypsoOn').checked;saveS();reqRecompute()};
+$('windLidar').onchange=()=>{S.windLidar=$('windLidar').checked;saveS();reqRecompute()};
+$('windLidarOpac').oninput=()=>{S.windLidarOpac=+$('windLidarOpac').value;$('windLidarOpacV').textContent=S.windLidarOpac;saveS();dirty=true};
+$('slopeMap').onchange=reqRecompute;$('slopeThr').onchange=()=>{S.slopeThr=+$('slopeThr').value;saveS();reqRecompute()};
+$('profCanvas').addEventListener('pointerdown',profPointer);$('profCanvas').addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='mouse')profPointer(e)});
+[['obsH','obsV'],['tgtH','tgtV'],['vsR','rngV']].forEach(([a,b])=>{$(a).oninput=()=>{$(b).textContent=$(a).value;reqRecompute()}});
+$('towerSel').onchange=()=>{
+ const id=$('towerSel').value;if(!id)return;
+ const t=pois.find(p=>p.id===id);if(!t)return;
+ obs={lat:t.lat,lon:t.lon};sel=obs;
+ V.u=lon2u(t.lon);V.v=lat2v(t.lat);
+ const th=t.th||18;$('obsH').value=clamp(th,0,60);$('obsV').textContent=$('obsH').value;
+ if(+$('vsR').value<15){$('vsR').value=25;$('rngV').textContent='25'}
+ onSel();buildGrid();
+};
+$('towerRefresh').onclick=()=>{if(S.offline)toast('V offline režimu se používají uložené rozhledny.');else{toast('Načítám objekty v okolí…',2500);fetchPoisViewport(true)}};
+$('poiFetchNow').onclick=()=>{if(S.offline)toast('V offline režimu se používají uložené body.');else{toast('Načítám objekty v okolí…',2500);fetchPoisViewport(true)}};
+function syncFilterChips(){document.querySelectorAll('#poiFilters .chip').forEach(b=>{b.classList.toggle('on',!!S.filters[b.dataset.f])})}
+$('poiFilters').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.f;S.filters[k]=!S.filters[k];saveS();syncFilterChips();dirty=true};
+$('wpAddSel').onclick=()=>addWaypoint(sel);
+$('wpAddGps').onclick=()=>addWaypoint(gps);
+$('wpExport').onclick=exportWaypoints;
+$('wpImportBtn').onclick=()=>$('wpImportFile').click();
+$('wpImportFile').onchange=e=>{importWaypoints(e.target.files[0]).catch(err=>toast('Chyba importu: '+err.message,5000));e.target.value=''};
+$('wpList').onclick=e=>{
+ const go=e.target.closest('[data-wp-go]'),del=e.target.closest('[data-wp-del]');
+ if(go){const w=waypoints.find(x=>x.id===go.dataset.wpGo);if(w){sel={lat:w.lat,lon:w.lon};V.u=lon2u(w.lon);V.v=lat2v(w.lat);if(V.z<13)V.z=14;hzStale=true;onSel();buildGrid()}}
+ if(del)delWaypoint(del.dataset.wpDel);
+};
+function setWind(v){wind=((+v%360)+360)%360;$('windR').value=wind;$('windV').textContent=`${Math.round(wind)}° (${windName(wind)})`;reqRecompute()}
+$('windR').oninput=()=>setWind($('windR').value);$('shDist').onchange=reqRecompute;
+DIRS.forEach((d,i)=>{const b=document.createElement('button');b.textContent=d;b.style.minWidth='44px';b.onclick=()=>setWind(i*45);$('windQ').appendChild(b)});
+$('wxWind').onclick=()=>{if(wx&&typeof wx.wind_direction_10m==='number'){setWind(wx.wind_direction_10m);toast(`Vítr z Open-Meteo: ${wx.wind_direction_10m}°, ${wx.wind_speed_10m} km/h`)}else toast('Aktuální vítr z Open-Meteo není k dispozici (vyberte bod na mapě a buďte online).')};
+$('labelsOn').onchange=()=>{S.labels=$('labelsOn').checked;saveS();dirty=true;if(S.labels&&!S.offline)fetchPoisViewport()};
+$('basemap').onchange=()=>{S.basemap=$('basemap').value;saveS();dirty=true};
+$('opac').oninput=()=>{S.opac=+$('opac').value;$('opacV').textContent=S.opac;saveS();dirty=true};
+$('contour').onchange=()=>{S.contour=+$('contour').value;saveS();reqRecompute()};
+$('gridN').onchange=()=>{S.N=+$('gridN').value;saveS();buildGrid()};
+$('autoGrid').onchange=()=>{S.auto=$('autoGrid').checked;saveS()};
+$('offline').onchange=()=>{S.offline=$('offline').checked;saveS();if(S.offline){toast('Offline režim zapnut – síť se nepoužívá.');wx=null;updateStatus()}else if(sel)onSel();buildGrid();dirty=true};
+$('regSel').innerHTML=KRAJE.map(k=>`<option>${k.name}</option>`).join('');$('regSel').onchange=regEstimate;$('regZ').onchange=regEstimate;
+$('regDl').onclick=downloadRegion;$('regCancel').onclick=()=>{dlAbort=true};
+$('regList').onclick=e=>{const d=e.target.dataset;if(d.del)delRegion(d.del);if(d.ver)verRegion(d.ver)};
+$('hgtFile').onchange=e=>{loadHgt([...e.target.files]).catch(err=>toast('Chyba čtení HGT: '+err.message,5000));e.target.value=''};
+$('hgtOn').onchange=()=>{S.hgtOn=$('hgtOn').checked;saveS();buildGrid()};
+$('hgtList').onclick=e=>{const n=e.target.dataset.hgt;if(n){e.preventDefault();hgts=hgts.filter(h=>h.name!==n);renderHgt();buildGrid()}};
+$('p0').onchange=()=>{S.P0=+$('p0').value||1013.25;saveS();updateStatus()};
+$('tref').onchange=()=>{S.Tref=$('tref').value;saveS();updateStatus()};
+new ResizeObserver(()=>{document.documentElement.style.setProperty('--sh',$('sheet').offsetHeight+'px');drawHorizon();drawProfile()}).observe($('sheet'));
+window.addEventListener('resize',()=>{resize();scheduleGrid()});
+window.addEventListener('online',()=>{if(!S.offline)buildGrid()});
+
+/* ---------- start ---------- */
+(function init(){
+ resize();setNow();tl();syncPan();syncFilterChips();
+ $('labelsOn').checked=S.labels;$('lidarOn').checked=S.lidarOn;$('lidarStyle').value=S.detail;$('lidarOpac').value=S.lidarOpac;$('lidarOpacV').textContent=S.lidarOpac;$('lidarBlend').value=S.lidarBlend;$('hypsoOn').checked=S.hypsoOn;$('windLidar').checked=S.windLidar;$('windLidarOpac').value=S.windLidarOpac;$('windLidarOpacV').textContent=S.windLidarOpac;
+ $('basemap').value=S.basemap;$('opac').value=S.opac;$('opacV').textContent=S.opac;$('contour').value=S.contour;$('gridN').value=S.N;$('autoGrid').checked=S.auto;$('offline').checked=S.offline;$('hgtOn').checked=S.hgtOn;$('p0').value=S.P0;$('tref').value=S.Tref;$('slopeThr').value=S.slopeThr;
+ setWind(270);regEstimate();renderHgt();loadRegions().then(()=>{if(S.offline)buildGrid()});
+ updateLidarBadge();requestAnimationFrame(frame);buildGrid();
+ toast('Tip: v záložce Body můžete filtrovat rozhledny, zříceniny i podzemí a ukládat vlastní waypointy.',6000)})();
+</script>
+</body>
+</html>
